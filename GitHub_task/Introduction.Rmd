@@ -1,30 +1,53 @@
 ---
-title: "Введение в автоматизацию обработки данных на R | BioStat 2024/25"
+title: "Введение в автоматизацию обработки данных на R"
+subtitle: "BioStat 2024/25"
 author: "Evgenii Berdinskikh"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    toc: yes
+toc-title: "Оглавление"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(readxl)
+library(openxlsx)
+
 ```
 
-## R Markdown
+## Чтение и запись файлов
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r read}
+data_tsv <- read_delim("data/raw/data_tsv.tsv")
+data_csv <- read_csv("data/raw/data_csv.csv")
+data_csv2 <- read_csv2("data/raw/data_csv2.csv")
+data_excel <- read_excel("data/raw/data_excel.xlsx", sheet = "data_csv2")
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+```{r write}
+write_delim(data_tsv, "data/docs/data_tsv.tsv")
 
-You can also embed plots, for example:
+write_csv(data_csv, "data/docs/data_csv.csv")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+write_excel_csv(data_csv, "data/docs/data_excel.csv")
+
+write_csv2(data_csv2, "data/docs/data_csv2.csv")
+
+write_excel_csv2(data_csv2, "data/docs/data_excel2.csv")
+
+write.xlsx(data_excel, "data/docs/data_excel.xlsx", sheetName = "data", colNames = TRUE, rowNames = TRUE, append = FALSE)
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Формат, который правит всеми в среде R. Это rds. Его особенность в том, что он просто сериализует (переводит в некий общий набор байт) нужный объект. Если это таблица, которую мы, разумеется, предварительно почистили и привели все переменные к нужным типам (а основных типов в базовом случае два: количественный и факторный), то сохранение в формат rds сохраняет и типы. 
+
+```{r RDS}
+write_rds(data_excel, "data/temp/data.rds")
+data_rds <- read_rds("data/temp/data.rds")
+```
+
+## ...
