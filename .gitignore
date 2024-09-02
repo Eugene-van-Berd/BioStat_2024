@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 *.html
+**/data/temp/
+**/data/docs/
+**/data/pics/
