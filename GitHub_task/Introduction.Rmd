@@ -21,6 +21,7 @@ library(conflicted)
 
 conflict_prefer("%+%", "ggplot2")
 conflict_prefer("alpha", "ggplot2")
+conflict_prefer("filter", "dplyr")
 
 
 sem <- function(x) {
@@ -167,4 +168,160 @@ table(data_factor$Пол, data_factor$`Группа крови`)
 prop.table(table(data_factor$Пол, data_factor$`Группа крови`))
 ```
 
-## ....
+## Датафреймы
+```{r, tibble}
+data <- read_rds("data/raw/numeric_data.rds")
+
+data %>% add_column(test = "test", .after = Inf)
+data %>% add_row(Возраст = 99, Рост = 166, .before = 1)
+data %>% mutate(ID = row_number()) %>% select(ID, everything())
+
+summary(data)
+data %>% mutate(Категория = case_when(Рост < 164 ~ "Низкие", 
+                                      Рост > 171.2 ~ "Высокие", 
+                                      TRUE ~ "Средние")) %>% select(Категория,  everything(), -Рост) %>% 
+  split(.$Категория)
+
+
+data %>% 
+  rowwise() %>% 
+  mutate(Базофилы_Cреднее = mean(c(Базофилы_E1, Базофилы_E2))) %>% 
+  ungroup() %>% 
+  select(starts_with("Базофилы"))
+
+```
+```{r, tibble2}
+
+data <- read_delim("data/raw/data_tibble.tsv")
+data %>% glimpse()
+
+data %>% select(`Группа`, where(is.numeric))
+data %>% 
+  select(`Группа`, where(function(x) is.numeric(x) & mean(x, na.rm = TRUE) > 10))
+
+data %>% select(`Пол`, `Группа`, `Базофилы_E1`)
+#data %>% select(function(x) any(str_detect(x, "Жен")))
+data %>% select(function(x) any(replace_na(str_detect(x, "Жен"), FALSE)))
+data %>% select(`Группа крови`, `Возраст`, function(x) anyNA(x))
+data %>% select(`Группа`, function(x) !is.factor(x))
+data %>% select(`Группа`, (function(x) is.factor(x)) | where(function(x) is.numeric(x)))
+#data %>% select(Группа крови, `Возраст`, function(x) anyNA(x))
+#data %>% select(where(is.numeric) & where(function(x) sd(x, na.rm = TRUE) > 1))
+data %>% select(where(function(x) is.numeric(x) & sd(x, na.rm = TRUE) > 1))
+#data %>% select(function(x) sd(x, na.rm = TRUE) > 1)
+
+data %>% select(contains("E1")) 
+data %>% select(starts_with("Э")) 
+data %>% select(ends_with("E2")) 
+
+data %>% slice(1:7)
+data %>% slice(1:7 * -1)
+data %>% slice_head(prop = 0.05)
+data %>% slice_sample(prop = 0.1)
+data %>% slice_max(Рост)
+
+data %>% filter( between(`Возраст`, 25, 35) & `Группа крови` %in% c("A (II)", "O (I)"))
+data %>% filter( near(`Базофилы_E1`, 0.5, tol = 0.05))
+data %>% filter(if_all(.cols = ends_with("E1"), .fns = function(x) x > 1))
+data %>% filter(if_any(.cols = ends_with("E2"), .fns = function(x) x > 15))
+
+data %>% 
+  select(function(x) anyNA(x)) %>% 
+  mutate(`Группа крови` = `Группа крови` %>% replace_na("Неизвестно"))
+
+data %>% 
+  mutate(`Группа крови` = `Группа крови` %>% na_if("B (III)")) %>% 
+  mutate(`Группа крови` = `Группа крови` %>% replace_na("Неизвестно"))
+
+data %>% mutate(`Группа крови` = NULL)
+
+data %>% mutate(across(contains("E1"), function(x) (x - mean(x, na.rm = TRUE)) /sd(x, na.rm = TRUE)))
+data %>% mutate(across(function(x) replace_na(mean(x, na.rm = TRUE), FALSE) > 10,
+                       function(x) (x - mean(x, na.rm = TRUE)) /sd(x, na.rm = TRUE)))
+
+
+
+data %>% rowwise() %>% 
+  mutate(`Базофилы_Среднее` = mean(c_across(contains("Базофилы")))) %>% 
+  ungroup() %>% select(starts_with("Базофил"))
+
+data %>% group_by(`Группа`) %>% 
+  mutate(across(contains("Базофилы"), function(x) (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE))) %>% 
+  ungroup() %>% 
+  select(Группа, starts_with("Базофилы"))
+
+```
+```{r, tibble3}
+data %>%
+  rename_with(function(x) str_replace_all(x, c("_E1" = "_Визит_1", "_E2" = "_Визит_2")))
+
+data %>% 
+  arrange(Рост)
+data %>% 
+  group_by(Группа) %>% 
+  arrange(Рост, .by_group = TRUE)
+
+data %>% 
+  select(`Группа`, contains("E1")) %>% 
+  pivot_longer(!`Группа`)
+
+data %>% 
+  select(`Группа`, contains("E1")) %>% 
+  mutate(ID = row_number()) %>% 
+  pivot_longer(!c(`Группа`, ID)) %>% 
+  pivot_wider(id_cols = ID)
+
+data %>% 
+  distinct(Пол, `Группа крови`, .keep_all = TRUE)
+
+data %>% 
+  separate(`Группа крови`, into = c("Группа", "крови"), sep = " ")
+
+data %>% 
+  separate(`Группа крови`, into = c("Группа", "крови"), sep = " ") %>% 
+  unite("Группа крови", `Группа`, `крови`, sep = "-")
+
+
+data %>% 
+  select(`Группа`, where(is.numeric)) %>% 
+  group_by(`Группа`) %>% 
+  summarise(across(where(is.numeric), function(x) mean(x, na.rm = TRUE)))
+
+
+statistics <- list(
+  `Количество субъектов` = ~as.character(length(.x)),
+  `Количество (есть данные)` = ~as.character(sum(!is.na(.x))),
+  `Нет данных` = ~as.character(sum(is.na(.x))),
+  `Ср. знач.` = ~ifelse(sum(!is.na(.x)) == 0, "Н/П*", mean(.x, na.rm = TRUE) %>% round(2) %>% as.character()),
+  `Станд. отклон.` = ~ifelse(sum(!is.na(.x)) < 3, "Н/П*", sd(.x, na.rm = TRUE) %>% round(2) %>% as.character()),
+  `95% ДИ для среднего` = ~sd(.x, na.rm = TRUE) %>% round(2) %>% as.character(),
+  `мин. - макс.` = ~ifelse(sum(!is.na(.x)) == 0, "Н/П*", paste0(min(.x, na.rm = TRUE) %>% round(2), " - ", max(.x, na.rm = TRUE) %>% round(2))),
+  `Медиана` = ~ifelse(sum(!is.na(.x)) == 0, "Н/П*", median(.x, na.rm = TRUE) %>% round(2) %>% as.character()),
+  `Q1 - Q3` = ~ifelse(sum(!is.na(.x)) == 0, "Н/П*", paste0(quantile(.x, 0.25, na.rm = TRUE) %>% round(2), " - ", quantile(.x, 0.75, na.rm = TRUE) %>% round(2)))
+)
+
+
+# Знак тильды (~) и .x внутри функции — это просто краткий способ записать function(x).
+# sum(!is.na(.x)) — проверка на то, что, чтобы переменная не была пустой (нельзя забывать проверить всё, что только возможно, чтобы не получить неожиданную ошибку);
+# Наконец, мы округляем все значения и приводим к строковому типу, чтобы избежать ошибок при дальнейшем сведении всех результатов в красивую табличку.
+
+data %>% 
+  select(`Группа`, where(is.numeric)) %>% 
+  group_by(`Группа`) %>% 
+  summarise(across(where(is.numeric), statistics)) %>% 
+  pivot_longer(!`Группа`) %>% 
+  separate(name, into = c("Переменная", "Статистика"), sep = "_") %>% 
+  rename(`Значение` = value)
+
+
+data %>% 
+  select(`Группа`, !where(is.numeric)) %>% 
+  mutate(`Группа крови` = `Группа крови` %>% replace_na("Неизвестно")) %>% 
+  count(`Группа`, `Группа крови` ) %>% 
+  group_by(`Группа`) %>% 
+  mutate(`Процент по группе` = (n / sum(n) * 100) %>% round(2) %>% str_c("%")) %>% 
+  ungroup() %>% 
+  mutate(`Процент по выборке` = (n / sum(n) * 100) %>% round(2) %>% str_c("%")) 
+
+```
+
