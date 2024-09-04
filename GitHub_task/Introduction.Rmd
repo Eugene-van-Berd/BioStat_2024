@@ -17,6 +17,7 @@ library(readxl)
 library(openxlsx)
 library(psych)
 library(conflicted)
+library(flextable)
 
 
 conflict_prefer("%+%", "ggplot2")
@@ -36,7 +37,7 @@ sem <- function(x) {
 
 ## Чтение и запись файлов
 
-```{r read}
+```{r read, include=FALSE}
 data_tsv <- read_delim("data/raw/data_tsv.tsv")
 data_csv <- read_csv("data/raw/data_csv.csv")
 data_csv2 <- read_csv2("data/raw/data_csv2.csv")
@@ -44,7 +45,7 @@ data_excel <- read_excel("data/raw/data_excel.xlsx", sheet = "data_csv2")
 
 ```
 
-```{r write}
+```{r write, include=FALSE}
 write_delim(data_tsv, "data/docs/data_tsv.tsv")
 
 write_csv(data_csv, "data/docs/data_csv.csv")
@@ -61,7 +62,7 @@ write.xlsx(data_excel, "data/docs/data_excel.xlsx", sheetName = "data", colNames
 
 Формат, который правит всеми в среде R. Это rds. Его особенность в том, что он просто сериализует (переводит в некий общий набор байт) нужный объект. Если это таблица, которую мы, разумеется, предварительно почистили и привели все переменные к нужным типам (а основных типов в базовом случае два: количественный и факторный), то сохранение в формат rds сохраняет и типы. 
 
-```{r RDS}
+```{r RDS, include=FALSE}
 write_rds(data_excel, "data/temp/data.rds")
 data_rds <- read_rds("data/temp/data.rds")
 ```
@@ -86,7 +87,7 @@ median(c(1, 9, NA, 88, 2, NA, 42, NA, 4, 68, NA), na.rm = TRUE)
 
 ```
 
-```{r min/max}
+```{r min/max, include=FALSE}
 
 cat(min(c(60.22, 31.91, 72.71, 52.49, 46.21, 60.39, 60.09)), 
     max(c(60.22, 31.91, 72.71, 52.49, 46.21, 60.39, 60.09)), "\n")
@@ -169,7 +170,8 @@ prop.table(table(data_factor$Пол, data_factor$`Группа крови`))
 ```
 
 ## Датафреймы
-```{r, tibble}
+
+```{r tibble}
 data <- read_rds("data/raw/numeric_data.rds")
 
 data %>% add_column(test = "test", .after = Inf)
@@ -190,7 +192,8 @@ data %>%
   select(starts_with("Базофилы"))
 
 ```
-```{r, tibble2}
+
+```{r select, warning=FALSE}
 
 data <- read_delim("data/raw/data_tibble.tsv")
 data %>% glimpse()
@@ -214,6 +217,9 @@ data %>% select(contains("E1"))
 data %>% select(starts_with("Э")) 
 data %>% select(ends_with("E2")) 
 
+```
+
+```{r filter}
 data %>% slice(1:7)
 data %>% slice(1:7 * -1)
 data %>% slice_head(prop = 0.05)
@@ -225,6 +231,9 @@ data %>% filter( near(`Базофилы_E1`, 0.5, tol = 0.05))
 data %>% filter(if_all(.cols = ends_with("E1"), .fns = function(x) x > 1))
 data %>% filter(if_any(.cols = ends_with("E2"), .fns = function(x) x > 15))
 
+```
+
+```{r mutate, warning=FALSE}
 data %>% 
   select(function(x) anyNA(x)) %>% 
   mutate(`Группа крови` = `Группа крови` %>% replace_na("Неизвестно"))
@@ -250,8 +259,10 @@ data %>% group_by(`Группа`) %>%
   ungroup() %>% 
   select(Группа, starts_with("Базофилы"))
 
+
 ```
-```{r, tibble3}
+
+```{r tibble2}
 data %>%
   rename_with(function(x) str_replace_all(x, c("_E1" = "_Визит_1", "_E2" = "_Визит_2")))
 
@@ -281,6 +292,9 @@ data %>%
   separate(`Группа крови`, into = c("Группа", "крови"), sep = " ") %>% 
   unite("Группа крови", `Группа`, `крови`, sep = "-")
 
+```
+
+```{r, stat}
 
 data %>% 
   select(`Группа`, where(is.numeric)) %>% 
@@ -307,6 +321,7 @@ statistics <- list(
 
 data %>% 
   select(`Группа`, where(is.numeric)) %>% 
+  rename_with(function(x) str_replace_all(x, c("_E1" = ".Визит-1", "_E2" = ".Визит-2"))) %>% 
   group_by(`Группа`) %>% 
   summarise(across(where(is.numeric), statistics)) %>% 
   pivot_longer(!`Группа`) %>% 
@@ -323,5 +338,40 @@ data %>%
   ungroup() %>% 
   mutate(`Процент по выборке` = (n / sum(n) * 100) %>% round(2) %>% str_c("%")) 
 
+```
+
+## Печать таблиц
+```{r flex}
+
+tibble(var_1 = c("p_value", "0.05"), 
+       var_2 = c("p_value", "0.01")) %>% 
+  flextable() %>% 
+  theme_zebra() %>% 
+  merge_h(i = 1)
+
+data %>% 
+  select(`Группа`, where(is.numeric)) %>% 
+  rename_with(function(x) str_replace_all(x, c("_E1" = ".Визит-1", "_E2" = ".Визит-2"))) %>% 
+  group_by(`Группа`) %>% 
+  summarise(across(where(is.numeric), statistics)) %>% 
+  pivot_longer(!`Группа`) %>% 
+  separate(name, into = c("Переменная", "Статистика"), sep = "_") %>% 
+  rename(`Значение` = value) %>% 
+  flextable() %>% 
+  # theme_apa() %>% 
+  # theme_box() %>% 
+  theme_tron() %>%
+  # theme_alafoli() %>% 
+  # theme_zebra() %>% 
+  merge_v(c("Группа", "Переменная")) %>% 
+  align(align = "center") %>% 
+  width(width = 1) %>% 
+  bold(i = ~ str_detect(`Статистика`, "Нет данных")) %>% 
+  italic(i =  ~ str_detect(`Статистика`, "Количество")) %>% 
+  color(i = ~ `Значение` == 0, color = "red") %>% 
+  bg(i = ~ str_detect(`Переменная`, "Визит-1"), bg = "blue") 
+
+# Цвета по умолчанию: http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+  
 ```
 
