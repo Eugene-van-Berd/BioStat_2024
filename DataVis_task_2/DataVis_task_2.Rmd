@@ -1,0 +1,239 @@
+---
+title: "DataVis_task_2"
+author: "Evgenii Berdinskikh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggpubr)
+
+
+theme_custom <- theme_bw()+ theme(
+    plot.title = element_text(size = 30, hjust = 0.5),
+    plot.subtitle = element_text(size = 25, hjust = 0.5),
+    strip.text = element_text(size = 20),
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 25),
+    legend.title = element_text(size = 25),
+    legend.text = element_text(size = 20)
+  )
+
+```
+
+## Загрузка данных
+
+```{r message=FALSE, warning=FALSE}
+
+data <- read_csv("data/raw/hogwarts_2024.csv") %>% 
+  mutate(across(c(where(is.character), "course"), function(x) as.factor(x)))
+
+```
+
+## Диаграммы рассеяния
+### Задание 1:
+  
+- Постройте скаттерплот, визуализирующий связь между суммарным баллом студента за год и оценкой за экзамен по травологии. 
+- Добавьте на график линию тренда. 
+- Удалите доверительную область и сделайте линию прямой. 
+- Подумайте, как избежать того, чтобы записать одни и те же координаты x и y дважды.
+- Проинтерпретируйте график.
+
+```{r point1, fig.width=12, message=FALSE}
+
+ggplot(data, aes(x = result, y = `Herbology exam`)) +
+  geom_point()+ 
+  geom_smooth(method = "lm", se = FALSE, colour = "darkblue")+
+  stat_cor(method = "pearson", label.x = -300, label.y = 75, size = 10, colour = "darkblue")+
+  labs( title = "Взаимосвязь итоговых баллов и оценки по травологии",
+        x = "Cуммарный балл за год", y = "Оценка по травологии")+
+  theme_custom
+```
+
+График показывает сильную положительную корреляцию **(R = 0.76)** между итоговым баллом и оценкой по травологии: чем выше общий результат, тем лучше оценка по предмету.
+
+### Задание 2:
+
+- Отобразите на одном графике скаттерплоты, аналогичные тому, что вы делали на первом задании, 
+для экзаменов по травологии, магловедению, прорицаниям и зельеварению. 
+- На графике так же должна присутствовать линия тренда с характеристиками, аналогичными тем, что были в пункте 1.
+- Раскрасьте точки на графике в разные цвета, в соответствии с факультетами. Используйте стандартные цвета факультетов. 
+ 
+```{r point2, fig.height=12, fig.width=15, message=FALSE}
+
+data_long <- data %>% 
+  pivot_longer(cols = c(`Herbology exam`, `Muggle studies exam`, `Divinations exam`, `Potions exam`),
+               names_to = "exam", values_to = "score") %>% 
+  rename("Факультет" = house) %>% 
+  mutate("Экзамен" = fct_recode(as.factor(exam),
+                              "Травология" = "Herbology exam", 
+                              "Магловедение" = "Muggle studies exam",
+                              "Прорицания" = "Divinations exam",
+                              "Зельеварение" = "Potions exam"))
+
+ggplot(data_long, aes(x = result, y = score, colour = Факультет)) +
+  geom_point(size = 2)+ 
+  geom_smooth(method = "lm", se = FALSE, colour = "darkblue")+
+  stat_cor(method = "pearson", label.x = -300, label.y = 45, size = 7, colour = "darkblue")+
+  labs( title = "Взаимосвязь итоговых баллов и оценок за экзамены",
+        x = "Cуммарный балл за год", y = " ")+
+  scale_colour_manual(values = c("Gryffindor" = "#C50000", "Hufflepuff" = "#ECB939", 
+                             "Ravenclaw" = "#41A6D9", "Slytherin" = "#1F5D25"), 
+                      labels = c("Gryffindor" = "Гриффиндор", "Hufflepuff" = "Пуффендуй", 
+                             "Ravenclaw" = "Когтевран",  "Slytherin" = "Слизерин"))+
+  scale_y_continuous(position = "right")+
+  facet_grid(Экзамен ~ ., switch = "y")+
+  theme_custom
+
+```
+
+График демонстрирует наличие сильной положительной корреляции **(R = 0.76 - 0.80)** между итоговым баллом и оценками по травологии, магловедению и прорицаниям: чем выше общий результат, тем лучше оценка по данным предметам. Однако для экзамена по зельеварению данной корреляции не наблюдается, при этом студенты из Слизерина показывают лучшие результаты!
+
+### Задание 3:(----------------)
+
+- Видоизмените предыдущий график: сгруппируйте и покрасьте линии тренда в соответствии с одной из категориальных переменных (с такой, которая подсвечивает одно из наблюдений на предыдущем этапе, относящееся ко всем 4-м экзаменам). 
+
+Постарайтесь избежать коллизий в легенде, при этом сохранив и цветовую палитру для раскраски точек по факультетам. (1 б.)
+
+```{r point3, fig.height=12, fig.width=15, message=FALSE}
+
+
+ggplot(data_long, aes(x = result, y = score, colour = Факультет)) +
+  geom_point(size = 2)+ 
+  geom_smooth(aes(colour = sex, linetype = sex), method = "lm", se = FALSE) + 
+  stat_cor(method = "pearson", label.x = -300, label.y = 45, size = 7, colour = "darkblue")+
+  labs( title = "Взаимосвязь итоговых баллов и оценок за экзамены",
+        x = "Cуммарный балл за год", y = " ", linetype = "Пол") +
+  scale_colour_manual(values = c("Gryffindor" = "#C50000", "Hufflepuff" = "#ECB939", 
+                             "Ravenclaw" = "#41A6D9", "Slytherin" = "#1F5D25", 
+                             "male" = "black", "female" = "pink"), 
+                      labels = c("Gryffindor" = "Гриффиндор", "Hufflepuff" = "Пуффендуй", 
+                             "Ravenclaw" = "Когтевран",  "Slytherin" = "Слизерин",
+                             "male" = "Мужской", "female" = "Женский"))+
+  scale_y_continuous(position = "right")+
+  facet_grid(Экзамен ~ ., switch = "y")+
+  theme_custom
+
+```
+
+## Столбчатая диаграмма
+### Задание 1:
+
+- Постройте барплот (столбиковую диаграмму) распредления набранных баллов за первый семестр (с 1-й по 17-ю неделю включительно) у студентов разного происхождения. 
+- Выдвиньте гипотезу (или гипотезы), почему распределение получилось именно таким.
+
+```{r col1, fig.width=15}
+
+data %>% 
+  rowwise() %>% 
+  mutate(first_term = sum(c_across(week_1:week_17))) %>% 
+  ungroup() %>% 
+  group_by(bloodStatus) %>% 
+  summarise(n = n(), first_term = sum(first_term)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = fct_recode(bloodStatus, "Полукровки" = "half-blood", "Маглы" = "muggle-born", 
+                              "Чистокровки" = "pure-blood" ), y = first_term, fill = bloodStatus))+
+  geom_col(colour = "black", linewidth = 1)+
+  scale_fill_manual(values = c("half-blood" = "lightsalmon2", "muggle-born" = "azure2", 
+                               "pure-blood" = "goldenrod3"), 
+                    labels = c("half-blood" = "Полукровки", "muggle-born" = "Маглы", 
+                               "pure-blood" = "Чистокровки"))+
+  labs(y = "Баллы за первый семестр", x = "", fill = "Происхождение",
+       title = "Баллы за первый семестр у студентов разного происхождения")+
+  theme_custom
+
+```
+
+Наблюдаемое распределение суммарных баллов за первый семестр у студентов разного происхождения может быть связано с численностью студентов. Вероятнее всего, полукровок больше всего среди студентов, поэтому их общий балл за семестр также является наибольшим.
+
+### Задание 2:
+
+- Модифицируйте предыдущий график – отсортируйте столбцы в порядке убывания суммы баллов. 
+- Добавьте на график текстовые метки, отражающие число студентов каждого происхождения. Попробуйте использовать для этой задачи не geom_text, а geom_label. 
+- Настройте внешний вид geom_label по своему усмотрению. Поправьте название оси.
+- Проинтерпретируйте график. Соотносится ли интерпретация с вашей гипотезой из пункта 1? 
+
+```{r col2, fig.width=15}
+
+data %>% 
+  rowwise() %>% 
+  mutate(first_term = sum(c_across(week_1:week_17))) %>% 
+  ungroup() %>% 
+  group_by(bloodStatus) %>% 
+  summarise(n = n(), first_term = sum(first_term)) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = fct_reorder( fct_recode(bloodStatus, "Полукровки" = "half-blood", "Маглы" = "muggle-born", 
+                              "Чистокровки" = "pure-blood" ), first_term, .desc = TRUE), y = first_term, 
+             fill = bloodStatus))+
+  geom_col(colour = "black", linewidth = 1)+
+  geom_label(aes(label = paste0("Количество студентов:", "\n", n)), 
+             colour = "black", fill = "white", fontface = "bold", label.size = 1, size = 5, vjust = 1.5)+
+  scale_fill_manual(values = c("half-blood" = "lightsalmon2", "muggle-born" = "azure2", 
+                               "pure-blood" = "goldenrod3"), 
+                    labels = c("half-blood" = "Полукровки", "muggle-born" = "Маглы", 
+                               "pure-blood" = "Чистокровки"))+
+  labs(y = "Баллы за первый семестр", x = "", fill = "Происхождение",
+       title = "Баллы за первый семестр у студентов разного происхождения")+
+  theme_custom
+
+```
+
+График действительно показывает, что суммарные баллы за первый семестр у студентов разного происхождения коррелируют с численностью студентов. Полукровок больше всего среди студентов, поэтому их общий балл за семестр также является наибольшим. Чистокровки и маглорожденные набрали меньше баллов, что также связано с их меньшей численностью.
+
+### Задание 3:
+
+- И снова измените график – добавьте на него разбивку не только по происхождению, но и по полу. Раскрасьте столбцы по происхождению.
+- Сделайте подписи к столбцам читаемыми. 
+- Дайте графику название, измените, если требуется, название осей. 
+- Сделайте шаг для оси, на которой отображены очки, через каждую тысячу баллов. 
+- Разместите текстовые метки по правому краю графика. 
+- Настройте график таким образом, чтобы метки были видны целиком и не обрезались. 
+- Сохраните график на устройство.
+
+```{r col3, fig.width=15, message=FALSE, warning=FALSE}
+
+sex_blood_first_term <-
+data %>% 
+  rowwise() %>% 
+  mutate(first_term = sum(c_across(week_1:week_17))) %>% 
+  ungroup() %>% 
+  group_by(bloodStatus, sex) %>% 
+  summarise(n = n(), first_term = sum(first_term)) %>% 
+  ungroup() %>% 
+  mutate(sex_blood = paste0(sex, "_", bloodStatus)) %>% 
+  ggplot(aes(x = fct_reorder( fct_recode(
+    sex_blood, "Девушки-Полукровки" = "female_half-blood", "Парни-Полукровки" = "male_half-blood",
+    "Девушки-Маглы" = "female_muggle-born", "Парни-Маглы" = "male_muggle-born", 
+    "Девушки-Чистокровки" = "female_pure-blood", "Парни-Чистокровки" = "male_pure-blood"), 
+    first_term, .desc = FALSE), y = first_term, fill = sex_blood))+
+  geom_col(colour = "black", linewidth = 1)+
+  geom_label(aes(y = max(first_term), label = paste0("Количество студентов: ", n)), 
+             colour = "black", fill = "white", fontface = "bold", label.size = 1, size = 5, hjust = 1)+
+  scale_fill_manual(values = c( "female_half-blood" = "lightsalmon", "male_half-blood" = "lightsalmon3", 
+                                "female_muggle-born" = "azure", "male_muggle-born" = "azure3", 
+                                "female_pure-blood" = "goldenrod1", "male_pure-blood" = "goldenrod4"),
+                    labels = c( "female_half-blood" = "Девушки-Полукровки", "male_half-blood" = "Парни-Полукровки", 
+                                "female_muggle-born" = "Девушки-Маглы", "male_muggle-born" = "Парни-Маглы", 
+                                "female_pure-blood" = "Девушки-Чистокровки","male_pure-blood" = "Парни-Чистокровки")) +
+  scale_y_continuous(breaks = seq(-1000,10000,1000))+
+  labs(y = "Баллы за первый семестр", x = "", fill = "Происхождение и пол",
+       title = "Баллы за первый семестр у студентов разного происхождения и пола")+
+  coord_flip()+
+  theme_custom
+
+sex_blood_first_term
+```
+
+Сохраним график в папку **DataVis_task_2/data/pics/**
+
+```{r pic}
+ggsave("data/pics/sex_blood_first_term.png", sex_blood_first_term, width = 15, height = 10, dpi = 300, units = "in")
+```
+
+### Задание 4: (---------------)
+
+- Изучите функцию coord_flip(). 
+- Как вы думаете, когда она может быть полезна? Как вы думаете, в чем ее плюсы и минусы? 
+
