@@ -1,0 +1,126 @@
+---
+title: "Оценочная вероятность"
+author: "Evgenii Berdinskikh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+## Биномиальное распределение, где 1 - пациент вылечился и 0 - не вылечился
+```{r sample_1}
+
+# Истинная вероятность
+true_Pr <- 0.5  
+
+# Количество пациентов
+n_patients <- 4 
+
+#Результаты выборки
+sample_result <- rbinom(n_patients, 1, true_Pr)  
+
+#Оценочная вероятность
+mean(sample_result) 
+
+```
+
+## Набираем статистику
+```{r sample_n}
+
+# Истинная вероятность
+true_Pr <- 0.5
+
+# Количество пациентов
+n_patients <- 128
+
+# Количество повторений эксперимента
+n_repeats <- 1000 
+
+df_all_repeats <- data.frame(
+  n_exp = rep(1:n_repeats, each = n_patients),
+  ID =  rep(1:n_patients, n_repeats),
+  Pr = rbinom(n_repeats * n_patients, 1, true_Pr)
+)
+
+```
+
+## Оценка вероятности в каждом эксперименте
+```{r estimations}
+
+df_sample_Pr <- df_all_repeats %>% 
+  group_by(n_exp) %>% 
+  dplyr::summarise(mean_Pr = mean(Pr)) %>% 
+  ungroup()
+
+ggplot(df_sample_Pr, aes(x = mean_Pr)) +
+  geom_histogram(color = 'black', fill = 'white', binwidth = 0.05) +
+  scale_x_continuous(breaks = seq(0,1,0.1))+
+  theme_bw()
+
+```
+
+## Ошибка оценки
+```{r conclusions}
+
+error <- sqrt( mean((df_sample_Pr$mean_Pr-true_Pr)^2) )
+print(error)
+
+```
+
+## Выводы
+
+При фиксированном объеме выборки **(n_patients = 100)** ошибка в оценке вероятности события в зависимости от истинной вероятности имеет форму параболы с наибольшим значением при инстинной вероятности = 0.5
+
+```{r message=FALSE, warning=FALSE}
+
+ggplot(data = NULL, 
+  aes(
+  x = c(
+    rep(0.1,3), rep(0.3, 3), rep(0.5, 3), rep(0.7, 3), rep(0.9, 3)), 
+  y = c(
+    0.02913932, 0.02960574, 0.03075224, 
+    0.04635407, 0.04565085, 0.04576899, 
+    0.04906119, 0.05027126, 0.05237939, 
+    0.04626121, 0.04587919, 0.04499333, 
+    0.03182609, 0.03011312, 0.03028036)
+  )
+  )+
+  geom_point()+
+  geom_smooth()+
+  labs(x = "Истинная вероятность", y = "Ошибка в оценке вероятности")+
+  theme_bw()
+
+```
+
+При фиксированной истинной вероятности **(true_Pr = 0.5)** ошибка в её оценке снижается с ростом объема выборки по форме $y = \frac{1} {\sqrt{x}}$:
+
+
+```{r message=FALSE, warning=FALSE}
+
+ggplot(data = NULL, 
+  aes(
+  x = c(
+    rep(4,3), rep(16, 3), rep(64, 3), rep(128, 3), rep(256, 3)), 
+  y = c(
+    0.2558075, 0.2539685, 0.2493742,
+    0.1281479, 0.128938, 0.1237121,
+    0.06116943, 0.06152362, 0.06281561,
+    0.04251967, 0.04370603, 0.04528757, 
+    0.03203887, 0.03009157, 0.03118548)
+  )
+  )+
+  geom_point()+
+  geom_smooth(formula = y ~ 1/sqrt(x))+
+  labs(x = "Размер выборки", y = "Ошибка в оценке вероятности")+
+  theme_bw()
+
+```
+
+
+
+
