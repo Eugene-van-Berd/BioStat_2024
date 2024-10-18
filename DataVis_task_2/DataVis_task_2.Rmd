@@ -12,9 +12,6 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(ggpubr)
-library(gridExtra)
-
-
 
 theme_custom <- theme_bw()+ theme(
     plot.title = element_text(size = 30, hjust = 0.5),
@@ -36,6 +33,7 @@ data <- read_csv("data/raw/hogwarts_2024.csv") %>%
   mutate(across(c(where(is.character), "course"), function(x) as.factor(x)))
 
 ```
+
 
 
 ## Диаграммы рассеяния
@@ -149,6 +147,7 @@ ggplot(data_long, aes(x = result, y = score)) +
 
 
 
+
 ## Столбчатая диаграмма
 
 ### Задание 1:
@@ -159,7 +158,7 @@ ggplot(data_long, aes(x = result, y = score)) +
 -   Выдвиньте гипотезу (или гипотезы), почему распределение получилось
     именно таким.
 
-```{r col1, fig.width=15}
+```{r col1, fig.height=15, fig.width=15}
 
 data %>% 
   rowwise() %>% 
@@ -198,7 +197,7 @@ data %>%
 -   Проинтерпретируйте график. Соотносится ли интерпретация с вашей
     гипотезой из пункта 1?
 
-```{r col2, fig.width=15}
+```{r col2, fig.height=15, fig.width=15}
 
 data %>% 
   rowwise() %>% 
@@ -242,7 +241,7 @@ data %>%
     обрезались.
 -   Сохраните график на устройство.
 
-```{r col3, fig.width=15, message=FALSE, warning=FALSE}
+```{r col3, fig.height=15, fig.width=15, message=FALSE, warning=FALSE}
 
 sex_blood_first_term <-
 data %>% 
@@ -358,33 +357,33 @@ ggarrange(
 
 ```
 
-### Задание 2: (Чем дополнить??)
+### Задание 2: (ЧИСТО ВЫВОДЫ)
 
 -   Визуализируйте средний балл по зельеварению студентов с различным
     происхождением. Вы вольны добавить дополнительные детали и
     информацию на график.
--   Проинтерпретируйте результат. Как вы думаете, почему он именно такой? Если у вас есть гипотеза,           проиллюстрируйте ее еще одним графиком (или графиками).
+-   Измените порядок ваших фигур на первом графике слева направо следующим образом: маглорожденные, чистокровные, полукровки. Скорректируйте название оси. 
+-   Проинтерпретируйте результат. Как вы думаете, почему он именно такой? Если у вас есть гипотеза, 
+    проиллюстрируйте ее еще одним графиком (или графиками).
+-   Объедините их при помощи ggarrange. 
 
-Объедините их при помощи ggarrange. (по 1 б. за первый и график и
-правильную интерпретацию с подтверждением в виде второго графика и
-текстовой аргументации). Измените порядок ваших фигур на первом графике
-слева направо следующим образом: маглорожденные, чистокровные,
-полукровки. Скорректируйте название оси. Если у вас возникают сложности,
-обратитесь к шпаргалке по пакету forcats от posit. (Дополнительные 0.5
-б.)
 
-```{r interval, fig.width=15}
+```{r Potions1, fig.height=15, fig.width=20}
 
-data %>% 
+Potions1 <- data %>% 
   group_by(bloodStatus) %>% 
   summarise(meanPotionsExam = signif(mean(`Potions exam`), 3),
             lower_Bound = quantile(`Potions exam`, 0.025), 
             upper_Bound = quantile(`Potions exam`, 0.975)) %>% 
-  ggplot(aes(x = fct_reorder( fct_recode(bloodStatus,
+   mutate(bloodStatus = fct_recode(bloodStatus,
                                          "Полукровки" = "half-blood", 
                                          "Грязнокровки" = "muggle-born", 
                                          "Чистокровки" = "pure-blood" ), 
-                              meanPotionsExam, .desc = TRUE), meanPotionsExam, 
+          bloodStatus = fct_relevel(bloodStatus, 
+                                    c("Грязнокровки",  "Чистокровки", "Полукровки")
+                                    )
+          ) %>% 
+  ggplot(aes(x = bloodStatus, y = meanPotionsExam, 
              ymin = lower_Bound, ymax = upper_Bound, colour = bloodStatus))+
   geom_pointrange(size = 2)+
   geom_errorbar(linewidth = 2)+
@@ -394,35 +393,162 @@ data %>%
             hjust = - 0.05, vjust = - 1.5,  size = 7, show.legend = FALSE) +
   geom_text(aes(y = lower_Bound, label = "95% доверительный интервал"), 
             size = 7, vjust = -1.5, hjust = - 0.4, angle = 90, show.legend = FALSE) + 
-  scale_colour_manual(values = c("half-blood" = "lightsalmon2", "muggle-born" = "slategrey", 
-                               "pure-blood" = "gold2"), 
-                      labels = c("half-blood" = "Полукровки", "muggle-born" = "Грязнокровки", 
-                               "pure-blood" = "Чистокровки")
+  scale_colour_manual(values = c("Грязнокровки" = "slategrey", 
+                               "Чистокровки" = "gold2", 
+                               "Полукровки" = "lightsalmon2")
                       )+
-  scale_y_continuous(breaks = seq(0,100,10))+
+  scale_y_continuous(breaks = seq(0,100,10), position = "right")+
   labs(x = "", y = "Оценка по зельеварению", colour = "Происхождение", 
        title = "Оценка по зельеварению для студентов разного происхождения")+
   theme_custom 
 
+Potions1
+
 ```
 
-Cравнить все экзамены - где-то хороша грязь, а где-то нет
+Возможно дело в самом экзамене? Где-то хороши чистокровки, а где-то грязнокровки!
 
-```{r fig.height=15, fig.width=15}
+```{r Potions2, fig.height=15, fig.width=20, message=FALSE, warning=FALSE}
 
-  data %>% 
+
+ Potions2 <- data %>% 
   pivot_longer(cols = contains("exam"), names_to = "exam", values_to = "score") %>% 
-  group_by(bloodStatus) %>% 
-  summarise(meanPotionsExam = signif(mean(score), 3),
-            lower_Bound = quantile(score, 0.025), 
-            upper_Bound = quantile(score, 0.975)) 
+  mutate(bloodStatus = fct_recode(bloodStatus,
+                                         "Полукровки" = "half-blood", 
+                                         "Грязнокровки" = "muggle-born", 
+                                         "Чистокровки" = "pure-blood" ), 
+         bloodStatus = fct_relevel(bloodStatus, 
+                                    c("Грязнокровки",  "Чистокровки", "Полукровки")
+                                    ), 
+         exam = fct_recode(exam,
+                           "Защита от тёмных искусств" = "Defence against the dark arts exam", 
+                           "Полеты" = "Flying exam", 
+                           "Астрономия" = "Astronomy exam", 
+                           "Гербология" = "Herbology exam", 
+                           "Прорицания" = "Divinations exam", 
+                           "Заклинания" = "Charms exam", 
+                           "История магии" = "History of magic exam", 
+                           "Нумерология" = "Arithmancy exam", 
+                           "Уход за магическими существами" = "Care of magical creatures exam", 
+                           "Магловедение" = "Muggle studies exam", 
+                           "Изучение древних рун" = "Study of ancient runes exam",
+                           "Трансфигурация" = "Transfiguration exam", 
+                           "Зельеварение" = "Potions exam" )
+         ) %>% 
+
+  group_by(exam, bloodStatus) %>%
+  summarise(mean_score = mean(score), min_score = min(score), max_score = max(score)) %>%
+  mutate(blood_exam = paste0(bloodStatus, " и ", str_replace(exam, " exam$", ""))) %>% 
+  arrange(mean_score) %>% 
+  ggplot()+
+  geom_pointrange(aes(x = fct_reorder(blood_exam, mean_score), y = mean_score, 
+                      ymin = min_score, ymax = max_score, colour = bloodStatus), size = 2, linewidth = 2) +
+  geom_hline(yintercept = c(45, 50), linetype = "dashed", colour = "black", linewidth = 2)+
+  scale_y_continuous(breaks = seq(0, 100, 10))+
+  scale_colour_manual(values = c("Полукровки" = "lightsalmon2", "Грязнокровки" = "slategrey", 
+                               "Чистокровки" = "gold2")
+                      )+
+  labs(x = "", y = "Оценка за экзамен", colour = "Происхождение", 
+       title = "Средние оценки студентов разного происхождения на экзаменах")+
+  theme_custom+
+  coord_flip()
+
+Potions2
+
+```
+Нет! Средний бал всегда находится в диапазоне 45-50 баллов, но только не для Грязнокровок на Зельеварении. Но всех ли грязнокровок не любит профессор зельеварения?
+
+```{r Potions3, fig.height=15, fig.width=20, message=FALSE, warning=FALSE}
+
+Potions3 <- data %>% 
+  pivot_longer(cols = contains("exam"), names_to = "exam", values_to = "score") %>% 
+   mutate(bloodStatus = fct_recode(bloodStatus,
+                                         "Полукровки" = "half-blood", 
+                                         "Грязнокровки" = "muggle-born", 
+                                         "Чистокровки" = "pure-blood" ), 
+         bloodStatus = fct_relevel(bloodStatus, 
+                                    c("Грязнокровки",  "Чистокровки", "Полукровки")
+                                    ), 
+         exam = fct_recode(exam,
+                           "Защита от тёмных искусств" = "Defence against the dark arts exam", 
+                           "Полеты" = "Flying exam", 
+                           "Астрономия" = "Astronomy exam", 
+                           "Гербология" = "Herbology exam", 
+                           "Прорицания" = "Divinations exam", 
+                           "Заклинания" = "Charms exam", 
+                           "История магии" = "History of magic exam", 
+                           "Нумерология" = "Arithmancy exam", 
+                           "Уход за магическими существами" = "Care of magical creatures exam", 
+                           "Магловедение" = "Muggle studies exam", 
+                           "Изучение древних рун" = "Study of ancient runes exam",
+                           "Трансфигурация" = "Transfiguration exam", 
+                           "Зельеварение" = "Potions exam" )
+         ) %>% 
+  ggplot()+
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 40, ymax = 45), fill = "skyblue", alpha = 0.2)+
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 50, ymax = 55), fill = "pink", alpha = 0.2)+
+  geom_boxplot(aes(x = exam, y = score, fill = sex), 
+               outliers = FALSE, linewidth = 1, colour = "black" )+
+  scale_y_continuous(breaks = seq(0, 100, 10))+
+  scale_fill_manual(values = c("male" = "skyblue2", "female" = "pink2"),
+                    labels = c("male" = "Парни", "female" = "Девушки")
+                    )+
+  labs(x = "", y = "Оценка за экзамен", fill = "Пол",
+       title = "Распределение оценок студентов разных полов на экзаменах")+
+  theme_custom+
+  coord_flip()
+
+Potions3
+
+```
+Если сравнивать медианные значения, то по каждому из экзаменов девушки набирают больше установелнного выше диапазона: 45-50 баллов, а перани ниже! И снова это все не касается зельеварения! Профессор зельеварения еще и сексист?
+
+```{r Potions4, fig.height=15, fig.width=20, message=FALSE, warning=FALSE}
+
+Potions4 <-  data %>% 
+  mutate(bloodStatus = fct_recode(bloodStatus,
+                                         "Полукровки" = "half-blood", 
+                                         "Грязнокровки" = "muggle-born", 
+                                         "Чистокровки" = "pure-blood" ), 
+          bloodStatus = fct_relevel(bloodStatus, 
+                                    c("Грязнокровки",  "Чистокровки", "Полукровки")
+                                    )
+          ) %>% 
+  ggplot()+
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 40, ymax = 45), fill = "skyblue", alpha = 0.2)+
+  geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 50, ymax = 55), fill = "pink", alpha = 0.2)+
+  geom_boxplot(aes(x = bloodStatus, y = `Potions exam`, fill = sex),
+               outliers = FALSE, linewidth = 1, colour = "black" )+
+  scale_y_continuous(breaks = seq(0, 100, 10), position = "right")+
+  scale_fill_manual(values = c("male" = "skyblue2", "female" = "pink2"),
+                    labels = c("male" = "Парни", "female" = "Девушки")
+                    )+
+  labs(x = "", y = "Оценка по зельеварению", fill = "Пол",
+       title = "Распределение оценок студентов разных полов и происхождения по зельеварению")+
+  theme_custom
+
+Potions4
+
+```
+О да! Он сексист и любитель чистокровок, все сходится!
+А теперь все объединим!
+
+```{r Potions5, fig.height=30, fig.width=60, message=FALSE, warning=FALSE}
+
+ggarrange(ggarrange(Potions2+theme(legend.position = "none"), 
+                    Potions3+theme(legend.position = "none"),
+                    ncol = 1, heights = c(1, 1)), 
+          ggarrange(Potions1+theme(legend.position = "inside", 
+                                   legend.justification = c(0.05, 0.9) ),
+                    Potions4+theme(legend.position = "inside",
+                                   legend.justification = c(0.05, 0.9) ),
+                    ncol = 1, heights = c(1, 1)), 
+          ncol = 2, widths = c(1, 1)
+          )
+
 
 
 ```
-
-
-
-
 
 ## Дополнительно: (ЧИСТО ВЫВОДЫ)
 
