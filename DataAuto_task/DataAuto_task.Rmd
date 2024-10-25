@@ -6,7 +6,6 @@ date: "`r Sys.Date()`"
 output:
   word_document:
     toc: true
-    # reference_docx: "template.docx" -- Настроить стили через референс
 ---
 
 ```{r setup, include=FALSE}
@@ -17,10 +16,21 @@ library(flextable)
 library(conflicted)
 library(skimr)
 library(visdat)
+library(ggbeeswarm)
+library(RColorBrewer)
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
 
+theme_custom <- theme_bw()+ theme(
+    plot.title = element_text(size = 30, hjust = 0.5),
+    plot.subtitle = element_text(size = 25, hjust = 0.5),
+    strip.text = element_text(size = 20),
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 25),
+    legend.title = element_text(size = 25),
+    legend.text = element_text(size = 20)
+  )
 ```
 
 # Чтение данных
@@ -35,6 +45,7 @@ data <- read_csv("data/raw/framingham.csv", show_col_types = FALSE)
 
 ```
 
+
 # Выведите общее описание данных
 
 ```{r description}
@@ -46,8 +57,8 @@ vis_miss(data)+
 
 ```
 
-# Очистка данных
 
+# Очистка данных
 ## Уберите переменные, в которых пропущенных значений больше 20% или уберите субъектов со слишком большим количеством пропущенных значений. Или совместите оба варианта. Напишите обоснование, почему вы выбрали тот или иной вариант:
 
 ```{r tidy1}
@@ -68,16 +79,18 @@ data %>%
 
 data %>% 
   transmute(
-    sex = factor(male, levels = c(0, 1), labels = c("female", "male")), age, education = factor(education), 
-    smoker = factor(currentSmoker, levels = c(0, 1), labels = c("No", "Yes")), сigs_per_day = cigsPerDay, 
-    BP_meds = factor(BPMeds, levels = c(0, 1), labels = c("No", "Yes")), 
-    stroke = factor(prevalentStroke, levels = c(0, 1), labels = c("No", "Yes")), 
-    hypertensive = factor(prevalentHyp, levels = c(0, 1), labels = c("No", "Yes")), 
-    diabetes = factor(diabetes, levels = c(0, 1), labels = c("No", "Yes")), 
-    cholesterol = totChol, systolic_BP = sysBP, diastolic_BP = diaBP, BMI, heart_rate = heartRate, glucose, 
-    CHD_outcome = factor(TenYearCHD, levels = c(0, 1), labels = c("No", "Yes"))
+    Пол = factor(male, levels = c(0, 1), labels = c("Ж", "М")), Возраст = age, Образование = factor(education), 
+    Курильщик = factor(currentSmoker, levels = c(0, 1), labels = c("Нет", "Да")), 
+    `Число сигарет в день` = cigsPerDay, 
+    `Прием препаратов для АД` = factor(BPMeds, levels = c(0, 1), labels = c("Нет", "Да")), 
+    `Перенесенный инсульт` = factor(prevalentStroke, levels = c(0, 1), labels = c("Нет", "Да")), 
+    Гипертония = factor(prevalentHyp, levels = c(0, 1), labels = c("Нет", "Да")), 
+    Диабет = factor(diabetes, levels = c(0, 1), labels = c("Нет", "Да")), 
+    `Уровень общего холестерина` = totChol, `Систолическое АД` = sysBP, `Диастолическое АД` = diaBP, 
+    `Индекс массы тела` = BMI, `Частота сердечных сокращений` = heartRate, `Уровень глюкозы` = glucose, 
+    `Риск развития ИБС` = factor(TenYearCHD, levels = c(0, 1), labels = c("Нет", "Да"))
   ) %>% 
-  arrange(desc(age))
+  arrange(desc(Возраст))
 
 ```
 
@@ -93,17 +106,19 @@ cleaned_data <- data %>%
     sum(is.na( across(everything()) )) < 2
   ) %>% 
   ungroup() %>% 
-  transmute(
-    sex = factor(male, levels = c(0, 1), labels = c("female", "male")), age, education = factor(education), 
-    smoker = factor(currentSmoker, levels = c(0, 1), labels = c("No", "Yes")), сigs_per_day = cigsPerDay, 
-    BP_meds = factor(BPMeds, levels = c(0, 1), labels = c("No", "Yes")), 
-    stroke = factor(prevalentStroke, levels = c(0, 1), labels = c("No", "Yes")), 
-    hypertensive = factor(prevalentHyp, levels = c(0, 1), labels = c("No", "Yes")), 
-    diabetes = factor(diabetes, levels = c(0, 1), labels = c("No", "Yes")), 
-    cholesterol = totChol, systolic_BP = sysBP, diastolic_BP = diaBP, BMI, heart_rate = heartRate, glucose, 
-    CHD_outcome = factor(TenYearCHD, levels = c(0, 1), labels = c("No", "Yes"))
+    transmute(
+    Пол = factor(male, levels = c(0, 1), labels = c("Ж", "М")), Возраст = age, Образование = factor(education), 
+    Курильщик = factor(currentSmoker, levels = c(0, 1), labels = c("Нет", "Да")), 
+    `Число сигарет в день` = cigsPerDay, 
+    `Прием препаратов для АД` = factor(BPMeds, levels = c(0, 1), labels = c("Нет", "Да")), 
+    `Перенесенный инсульт` = factor(prevalentStroke, levels = c(0, 1), labels = c("Нет", "Да")), 
+    Гипертония = factor(prevalentHyp, levels = c(0, 1), labels = c("Нет", "Да")), 
+    Диабет = factor(diabetes, levels = c(0, 1), labels = c("Нет", "Да")), 
+    `Уровень общего холестерина` = totChol, `Систолическое АД` = sysBP, `Диастолическое АД` = diaBP, 
+    `Индекс массы тела` = BMI, `Частота сердечных сокращений` = heartRate, `Уровень глюкозы` = glucose, 
+    `Риск развития ИБС` = factor(TenYearCHD, levels = c(0, 1), labels = c("Нет", "Да"))
   ) %>% 
-  arrange(desc(age))
+  arrange(desc(Возраст))
 
 ```
 
@@ -133,85 +148,129 @@ skim(cleaned_data) %>%
 
 ```{r tidy6}
 
-#За выбросы примем значения ниже Q1 - 1.5 × IQR и выше Q3 + 1.5 × IQR.
+#За выбросы принимаем значения ниже Q1 - 1.5 × IQR и выше Q3 + 1.5 × IQR.
 
-
-quantile(cleaned_data$cholesterol, 0.25, na.rm = TRUE) - 1.5 * IQR(cleaned_data$cholesterol, na.rm = TRUE)
-quantile(cleaned_data$cholesterol, 0.75, na.rm = TRUE) + 1.5 * IQR(cleaned_data$cholesterol, na.rm = TRUE)
-
-cleaned_data$cholesterol[cleaned_data$cholesterol < 120.5 | cleaned_data$cholesterol > 348.5 & !is.na(cleaned_data$cholesterol)]
-
-cleaned_data %>% 
+outliers <- cleaned_data %>% 
   mutate(across(where(is.numeric), 
                       function(x) 
                         x < quantile(x, 0.25, na.rm = TRUE) - 1.5 * IQR(x, na.rm = TRUE) | 
                         x > quantile(x, 0.75, na.rm = TRUE) + 1.5 * IQR(x, na.rm = TRUE),
                       .names = "outlier_{.col}")) %>% 
   rowwise() %>% 
-  mutate(outliers = sum(c_across(starts_with("outlier_"))))
+  mutate(outliers = sum(c_across(starts_with("outlier_")), na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  filter(outliers > 0) %>% 
+  select(1:16)
+
+
+#Файл с выбросами сохраним в папку data/docs
+write_excel_csv(outliers, "data/docs/outliers.csv")
 
 ```
 
-# Описательные статистики
 
+# Описательные статистики
 ## Количественные переменные
 
-1) Рассчитайте для всех количественных переменных для каждой группы (TenYearCHD):
+Рассчитайте для всех количественных переменных для каждой группы (TenYearCHD):
+- Количество значений;
+- Количество пропущенных значений;
+- Среднее;
+- Медиану;
+- Стандартное отклонение;
+- 25% квантиль и 75% квантиль;
+- Интерквартильный размах;
+- Минимум;
+- Максимум;
+- 95% ДИ для среднего - задание со звёздочкой.
 
-1.1) Количество значений;
+```{r stat_num}
 
-1.2) Количество пропущенных значений;
-
-1.3) Среднее;
-
-1.4) Медиану;
-
-1.5) Стандартное отклонение;
-
-1.6) 25% квантиль и 75% квантиль;
-
-1.7) Интерквартильный размах;
-
-1.8) Минимум;
-
-1.9) Максимум;
-
-1.10) 95% ДИ для среднего - задание со звёздочкой.
-
-```{r}
+statistics <- list(
+  'Количество значений' = ~ as.character( sum(!is.na(.x)) ), 
+  'Количество пропущенных значений'= ~ as.character( sum(is.na(.x)) ), 
+  'Среднее значение' = ~ as.character( round (mean(.x, na.rm = TRUE), 2) ),
+  '95% ДИ для среднего' = ~ paste0(round (t.test(.x)[["conf.int"]][1], 2), " - ", 
+                                                 round(t.test(.x)[["conf.int"]][2], 2)),
+  'Стандартное отклонение' = ~ as.character( round (sd(.x, na.rm = TRUE), 2) ), 
+  'Медиана (Q1-Q3)' = ~ paste0(median(.x, na.rm = TRUE), " (", quantile(.x, 0.25, na.rm = TRUE), " - ",
+                               quantile(.x, 0.75, na.rm = TRUE), ")"),
+  'IQR' = ~ as.character( IQR(.x, na.rm = TRUE) ), 
+  'Минимум и Максимум' = ~ paste0(min(.x, na.rm = TRUE),  " - ", max(.x, na.rm = TRUE)) 
+  )
 
 
-
+cleaned_data %>% 
+  group_by(`Риск развития ИБС`) %>% 
+  summarise(across(where(is.numeric), statistics)) %>% 
+  pivot_longer(!`Риск развития ИБС`) %>% 
+  separate(name, into = c("Переменная", "Статистика"), sep = "_") %>% 
+  rename(`Значение` = value) %>% 
+  flextable() %>% 
+  theme_box() %>% 
+  merge_v(c("Риск развития ИБС", "Переменная")) %>% 
+  width(j = 1, width = 2) %>% 
+  width(j = 2, width = 2) %>% 
+  width(j = 3, width = 3.5) %>% 
+  width(j = 4, width = 2)
+  
 ```
 
 ## Категориальные переменные
 
-1) Рассчитайте для всех категориальных переменных для каждой группы (TenYearCHD):
-
-1.1) Абсолютное количество;
-
-1.2) Относительное количество внутри группы;
-
-1.3) 95% ДИ для доли внутри группы - задание со звёздочкой.
+Рассчитайте для всех категориальных переменных для каждой группы (TenYearCHD):
+- Абсолютное количество;
+- Относительное количество внутри группы;
+- 95% ДИ для доли внутри группы - задание со звёздочкой.
 
 ```{r}
 
-
+for(i in match(names(
+  cleaned_data %>% select(where(is.factor) & !"Риск развития ИБС" )),
+  colnames(cleaned_data))
+  ) {
+  
+  print(
+  cleaned_data %>% 
+  count(`Риск развития ИБС`, cleaned_data[,i],  name = "Абсолютное количество") %>% 
+  group_by(`Риск развития ИБС`) %>% 
+  mutate(`Относительное количество` = paste0 (round(
+      `Абсолютное количество` / sum(`Абсолютное количество`) * 100, 2), " %"), 
+      across(where(is.factor), ~ fct_na_value_to_level(.x, level = "Пропущенные значения"))) %>% 
+  ungroup() %>% 
+  flextable() %>% 
+  theme_box() %>% 
+  merge_v(c("Риск развития ИБС")) %>% 
+  autofit()
+  ) }
 
 ```
 
-# Визуализация
 
+# Визуализация
 ## Количественные переменные
 
-1) Для каждой количественной переменной сделайте боксплоты по группам. Расположите их либо на отдельных рисунках, либо на одном, но читаемо;
+- Для каждой количественной переменной сделайте боксплоты по группам. Расположите их либо на отдельных рисунках, либо на одном, но читаемо;
+- Наложите на боксплоты beeplots - задание со звёздочкой.
+- Раскрасьте боксплоты с помощью библиотеки RColorBrewer.
 
-2) Наложите на боксплоты beeplots - задание со звёздочкой.
+```{r fig.height=20, fig.width=20}
 
-3) Раскрасьте боксплоты с помощью библиотеки RColorBrewer.
-
-```{r}
-
+cleaned_data %>% 
+  select(where(is.numeric) | `Риск развития ИБС`) %>% 
+  pivot_longer(!`Риск развития ИБС`, names_to = "Переменная", values_to = "Значение") %>% 
+  filter(!is.na(Значение)) %>%  
+  ggplot(aes(`Риск развития ИБС`, Значение)) +
+  geom_quasirandom(alpha = 0.3)+
+  geom_boxplot(aes(fill = `Риск развития ИБС`), outliers = FALSE, color = "black", linewidth = 1, alpha = 0.7)+
+  scale_fill_brewer(palette = "Pastel1", direction = -1)+
+  facet_wrap( ~ Переменная, scales = "free")+
+  labs(x = "", title = "Сравнение распределения количественных переменных в зависимости от риска развития ИБС")+
+  theme_custom+
+  theme(
+    legend.position = "inside", 
+    legend.justification = c(0.90, 0.15)
+    )
 
 
 ```
@@ -228,7 +287,6 @@ cleaned_data %>%
 
 
 # Статистические оценки
-
 ## Проверка на нормальность
 
 1) Оцените каждую переменную на соответствие нормальному распределению с помощью теста Шапиро-Уилка. Какие из переменных являются нормальными и как как вы это поняли?
@@ -261,6 +319,7 @@ cleaned_data %>%
 
 
 ```
+
 
 # Далее идут **необязательные** дополнительные задания, которые могут принести вам дополнительные баллы в том числе в случае ошибок в предыдущих
 
