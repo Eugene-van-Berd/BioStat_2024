@@ -18,6 +18,8 @@ library(skimr)
 library(visdat)
 library(ggbeeswarm)
 library(RColorBrewer)
+library(ggpubr)
+
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("lag", "dplyr")
@@ -261,7 +263,7 @@ cleaned_data %>%
   pivot_longer(!`Риск развития ИБС`, names_to = "Переменная", values_to = "Значение") %>% 
   filter(!is.na(Значение)) %>%  
   ggplot(aes(`Риск развития ИБС`, Значение)) +
-  geom_quasirandom(alpha = 0.3)+
+  geom_quasirandom(colour = "springgreen3")+
   geom_boxplot(aes(fill = `Риск развития ИБС`), outliers = FALSE, color = "black", linewidth = 1, alpha = 0.7)+
   scale_fill_brewer(palette = "Pastel1", direction = -1)+
   facet_wrap( ~ Переменная, scales = "free")+
@@ -279,7 +281,40 @@ cleaned_data %>%
 
 1) Сделайте подходящие визуализации категориальных переменных. Обоснуйте, почему выбрали именно этот тип.
 
-```{r}
+Для графического представления двух категориальных переменных отлично подойдет **Столбчатая диаграмма**. 
+Построенные графики четко визуализирует статистические данные:
+  
+```{r fig.height=10, fig.width=20}
+
+for(i in match(names(
+  cleaned_data %>% select(where(is.factor) & !"Риск развития ИБС" )),
+  colnames(cleaned_data))
+  ) {
+  
+  print(
+  cleaned_data %>% 
+  rename (fill = names(cleaned_data[,i])) %>% 
+  count(`Риск развития ИБС`, fill,  name = "Абсолютное количество") %>% 
+  group_by(`Риск развития ИБС`) %>% 
+  mutate(`Относительное количество` = 
+      `Абсолютное количество` / sum(`Абсолютное количество`), 
+      across(where(is.factor), ~ fct_na_value_to_level(.x, level = "Пропущенные значения"))) %>% 
+  ungroup() %>% 
+    ggplot(aes(x = `Риск развития ИБС`, y = `Абсолютное количество`, fill = fill)) +  
+    geom_col(position = position_dodge(width = 0.9)) +
+    geom_text(aes(label = paste0(round(`Относительное количество`*100, 2), "%")), 
+            position = position_dodge(width = 0.9), 
+            size = 7, vjust = -0.5) + 
+    scale_fill_brewer(name = names(cleaned_data[,i]),
+                      palette = "Pastel1",
+                      labels = c("Ж" = "Женщина", "М" = "Мужчина"))+
+    scale_y_continuous(n.breaks = 10) +
+    labs(y = "Количество наблюдений", 
+         title = paste0("Распределение категорий переменной по уровням риска ИБС"), 
+         subtitle = paste0("Переменная: ", names(cleaned_data[,i])))+
+    theme_custom
+  )
+   }
 
 
 
@@ -293,14 +328,25 @@ cleaned_data %>%
 
 ```{r}
 
-
+cleaned_data %>% 
+  group_by(`Риск развития ИБС`) %>%
+  summarise(across(where(is.numeric), 
+                   ~ shapiro.test(.x)$p.value, 
+                    .names = "{.col}_p.value" ) )
 
 ```
 
 2) Постройте для каждой количественной переменной QQ-плот. Отличаются ли выводы от теста Шапиро-Уилка? Какой метод вы бы предпочли и почему?
 
-```{r}
+```{r fig.height=20, fig.width=10}
 
+cleaned_data %>% 
+select(where(is.numeric) | `Риск развития ИБС`) %>% 
+  pivot_longer(!`Риск развития ИБС`, names_to = "Переменная", values_to = "Значение") %>% 
+  filter(!is.na(Значение)) %>%  
+  ggqqplot(., x = "Значение", color = "Риск развития ИБС") +
+  facet_grid( Переменная ~  `Риск развития ИБС`, scales = "free")+
+  labs(title = "QQ-плот")
 
 
 ```
@@ -308,7 +354,8 @@ cleaned_data %>%
 3) Ниже напишите, какие ещё методы проверки на нормальность вы знаете и какие у них есть ограничения.
 
 **Напишите текст здесь**
-
+Колмагоров +1
++ графики из Минитаба 
 
 ## Сравнение групп
 
@@ -316,13 +363,34 @@ cleaned_data %>%
 
 ```{r}
 
+#Количественная - средние по t.test + поправка на множ. сравнения
+t.test(Возраст ~ `Риск развития ИБС`, data = cleaned_data)
+
+#Категориальная  -  V Крамера + хи2
+Cramers_V <- function(x, y) {
+ 
+  x <- as.factor(x)
+  y <- as.factor(y)
+  tbl <- table(x, y)
+  chi2 <- chisq.test(tbl)$statistic
+  n <- sum(tbl)
+  
+  V <- sqrt(
+    chi2 / (n * min(nrow(tbl) - 1, ncol(tbl) - 1) ) 
+    )
+  
+  return(V)
+  
+}
+
+Cramers_V(cleaned_data$`Риск развития ИБС`, cleaned_data$Пол)
 
 
 ```
 
 
-# Далее идут **необязательные** дополнительные задания, которые могут принести вам дополнительные баллы в том числе в случае ошибок в предыдущих
 
+# Далее идут **необязательные** дополнительные задания, которые могут принести вам дополнительные баллы в том числе в случае ошибок в предыдущих
 ## Корреляционный анализ
 
 1) Создайте корреляционную матрицу с визуализацией и поправкой на множественные сравнения. Объясните, когда лучше использовать корреляционные матрицы и в чём минусы и плюсы корреляционных исследований.
