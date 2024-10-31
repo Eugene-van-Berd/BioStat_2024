@@ -1,0 +1,128 @@
+---
+title: "Вероятность летального исхода после падения с электросамоката."
+author: "Evgenii Berdinskikh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(readxl)
+library(conflicted)
+library(skimr)
+library(pROC)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+
+```
+
+## Описание данных
+
+```{r, description}
+
+data <- read_excel("data/raw/trauma.xlsx")
+head(data)
+skim(data)
+
+```
+
+После первого взгляда правим датасет + ряд новых переменных.
+
+```{r dplyr}
+
+data_clean <- data %>% 
+  transmute(id = as.character(id), 
+            #Name, 
+            Sex = as.factor(Sex), 
+            Age, 
+            Height = signif( as.numeric( str_replace(Height,'"', "") ) * 2.54 / 100, 3), 
+            Weight = signif( Weight / 2.2, 3), 
+            BMI = signif( Weight/ Height^2, 3), 
+            SBP, DBP, FOUR, GSC,
+            Hb = na_if(Hb, 0),
+            Hb_level = case_when(
+              is.na(Hb) ~ "Неизвестно", 
+              Sex == "Male" & Hb > 16 ~ "Выше нормы", 
+              Sex == "Male" & Hb < 13.5 ~ "Ниже нормы", 
+              Sex == "Female" & Hb > 14 ~ "Выше нормы", 
+              Sex == "Female" & Hb < 12 ~ "Ниже нормы", 
+              TRUE ~ "В пределах нормы" ), 
+            Death = factor(Death, levels = c(0, 1), labels = c("No", "Yes"))
+            )
+
+data_clean %>% head()
+
+#Дополнительно рассчитайте, у какого количества пациентов и в каком проценте случаев у пациентов был снижен уровень гемоглобина? Используйте следующие референтные значения (Мужчины:13.5–16 г/дл, Женщины: 12–14 г/дл). 
+
+#Каков был средний (M (SD)) уровень ИМТ у пациентов, включённых в исследование? Какая доля пациентов имела ожирение (ИМТ > 30)?
+
+```
+
+Может через tbl_summary
+Из Х пациентов у Y (Z%) был зафиксирован сниженный уровень гемоглобина.
+
+## Предсказание 1
+
+Как выглядит ROC-кривая для предсказания летального исхода в течение 24 часов по переменной, характеризующей уровень гемоглобина? Постройте график. 
+
+```{r roc1, fig.height=4, fig.width=4}
+
+roc_Death_Hb <- roc(Death ~ Hb,
+                    data = data_clean,
+                    ci = T)
+
+roc_Death_Hb
+
+roc_Death_Hb %>% 
+  ggroc()+ 
+  theme_bw()
+
+```
+
+Чем может быть обусловлена такая форма кривой?
+Неплохое объяснение
+
+Чему равна площадь под ROC-кривой, которую вы построили в вопросе 3? 
+Чему равен 95% двусторонний ДИ для площади под ROC-кривой, которую вы построили в вопросе 3?
+Взять из переменной
+
+## Предсказание 2
+
+Проведите ROC-анализ и определите, какое пороговое значение является оптимальным для предсказания летального исхода в течение 24 часов по шкале комы Глазго. Какой чувствительностью и специфичностью обладает данный порог?
+
+```{r roc2, fig.height=4, fig.width=4}
+
+roc_Death_GSC <- roc(Death ~ GSC,
+                    data = data_clean,
+                    ci = T)
+
+roc_Death_GSC
+
+roc_Death_GSC %>% 
+  ggroc()+ 
+  theme_bw()
+
+#Пороги, спец, чувства
+roc_Death_GSC %>% coords(x = "best", best.method = "closest.topleft")
+
+```
+
+## Предсказание 3
+Какая из количественных переменных в датасете (включая рассчитанный вами ранее ИМТ) обладает наибольшей площадью под ROC-кривой? Как вы можете интерпретировать это знание? Какая количественная переменная имеет наименьшую площадь?
+
+
+```{r roc3}
+
+data_clean %>% 
+  select(where(is.numeric) | Death) %>% 
+  pivot_longer(!Death) %>% 
+  group_by(name) %>% 
+  summarise(AUC = roc(Death ~ value, ci = T)$ci[2] %>% signif(3),
+            AUC_LCL = roc(Death ~ value, ci = T)$ci[1] %>% signif(3),
+            AUC_UCL = roc(Death ~ value, ci = T)$ci[3] %>% signif(3) ) %>% 
+  arrange(desc(AUC))
+```
+
