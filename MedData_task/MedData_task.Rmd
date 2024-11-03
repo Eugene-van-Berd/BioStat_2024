@@ -95,7 +95,7 @@ signif(nrow(data_clean %>% filter(Hb_level == "Ниже нормы"))/nrow(data_
 "% от общего числа пациентов.", "\n", 
 "Кроме того, средний уровень ИМТ у пациентов, включенных в исследование, составил ",
 signif(mean(data_clean$BMI), 3), " при стандартном отклонении - ",
-signif(sd(data_clean$BMI), 3), ", а от ожирения стадало ",
+signif(sd(data_clean$BMI), 3), ", а от ожирения страдало ",
 signif(nrow(data_clean %>% filter(BMI > 30))/nrow(data_clean)*100, 3),
 "% пациентов."
 
