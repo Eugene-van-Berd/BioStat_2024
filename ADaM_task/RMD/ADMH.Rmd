@@ -1,0 +1,113 @@
+---
+title: "ADMH"
+author: "Evgenii Berdinskikh"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(readxl)
+library(openxlsx)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
+```
+
+## Задание
+
+- Согласно спецификации собрать датасет с анамнезом субъектов **ADMH** на основе *ADSL* и домена *MH*.
+- В папке ADaM-like должен находиться сделанный ADMH.
+- Обратите внимание на содержимое переменной MHTERM, не во всех строках оно несет наполнение, что с этим нужно сделать?
+
+## Загрузка данных
+
+```{r read}
+
+ADSL <- read_excel("../ADaM-like/ADSL.xlsx")
+MedHis <- read_excel("../SDTM/MH_MEDICALHISTORY.xlsx")
+
+```
+
+## Подготовка данных
+
+```{r transformation}
+
+ADSL_join <- ADSL %>% 
+  transmute(
+    STUDYID = as.character(STUDYID), 
+    USUBJID = as.character(USUBJID),
+    TRTP = as.character(TRTP),
+    TRTPN = as.numeric(TRTPN) 
+  )
+
+MedHis_join <- MedHis %>%
+  filter(!is.na(MHTERM) & MHCAT == "Medical History") %>% 
+  transmute(
+    USUBJID = paste(STUDYID, SUBJID, sep = '-'),
+    MHSEQ = as.numeric(MHSEQ),
+    MHCAT = as.character(MHCAT),
+    MHTERM = as.character(MHTERM),
+    MHDECOD = as.character(MHDECOD),
+    MHBODSYS = as.character(MHBODSYS),
+    MHSTDTC = as.character(MHSTDTC),
+    ASTDT = format(ymd(case_when(
+      nchar(MHSTDTC) == 4 ~ paste0(MHSTDTC, "-01-01"), 
+      nchar(MHSTDTC) == 7 ~ paste0(MHSTDTC, "-01"),   
+      TRUE ~ MHSTDTC
+      )), "%d.%m.%Y"),
+    ASTDTF = case_when(
+      nchar(MHSTDTC) < 4 | is.na(MHSTDTC) ~ "Y", 
+      nchar(MHSTDTC) == 4 ~ "M", 
+      nchar(MHSTDTC) == 7 ~ "D",   
+      TRUE ~ NA
+      ),
+    MHENDTC = as.character(MHENDTC), 
+    AENDT = case_when(
+      MHENRTPT == "ONGOING" ~ MHENRTPT,
+      TRUE ~ format(ymd(case_when(
+      nchar(MHENDTC) == 4 ~ paste0(MHENDTC, "-01-01"), 
+      nchar(MHENDTC) == 7 ~ paste0(MHENDTC, "-01"),   
+      TRUE ~ MHENDTC
+      )), "%d.%m.%Y")),
+    AENDTF = case_when(
+      nchar(MHENDTC) < 4 | is.na(MHENDTC) ~ "Y", 
+      nchar(MHENDTC) == 4 ~ "M", 
+      nchar(MHENDTC) == 7 ~ "D",   
+      TRUE ~ NA
+      ),
+    MHENRTPT = as.character(MHENRTPT), 
+    MHENRF = case_when(
+      MHENRTPT == "ONGOING" ~ MHENRTPT,
+      TRUE ~ NA
+    )
+  ) 
+
+```
+
+## Проверка данных
+
+```{r check}
+
+unique(ADSL_join$TRTP) %in% c("XXXX0", "XXXX1")
+unique(ADSL_join$TRTPN)  %in% c(1,2)
+unique(MedHis_join$MHCAT) == "Medical History"
+unique(MedHis_join$MHENRTPT) %in%  c("ONGOING", "BEFORE", "COINCIDENT", "AFTER", "U")
+unique(MedHis_join$MHENRF) == "ONGOING"
+
+```
+
+## Сборка ADMH
+
+```{r ADMH}
+
+ADMH <- left_join(ADSL_join, MedHis_join, by = join_by(USUBJID))
+
+write.xlsx(ADMH, "../ADaM-like/ADMH.xlsx")
+
+```
+
+
