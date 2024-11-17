@@ -21,6 +21,11 @@ library(rstatix)
 library(ggpubr)
 library(corrplot)
 library(corrr)
+library(factoextra)
+library(ggsci)
+library(pheatmap)
+library(ggbiplot)
+library(plotly)
 
 conflict_prefer("alpha", "ggplot2")
 conflict_prefer("filter", "dplyr")
@@ -43,7 +48,7 @@ theme_custom <- theme_bw()+ theme(
 -   Переменными исхода являются колонки **dead**, а также **hospstay** - время от рождения до смерти или выписки (выводятся из 'birth' и 'exit', 7 пациентов были выписаны до рождения).
 -   Сделайте копию датасета, в которой удалите колонки с количеством пропусков больше 100, а затем удалите все строки с пропусками.
 
-```{r read}
+```{r read, include=FALSE}
 
 data_raw <- read_rds("data/raw/very_low_birthweight.RDS")
 
@@ -124,11 +129,6 @@ cleaned_data %>%
 
 ```
 
-
-
-
-
-
 ## Задание 3
 
 - Проведите тест на сравнение значений колонки **min_ph** между группами в переменной **inout**. Вид статистического теста определите самостоятельно. 
@@ -182,33 +182,150 @@ cor(cor_data) %>%
 
 ```
 
-## Задание 5 ----------------------------------------------------------- 
+## Задание 5
 
 - Постройте иерархическую кластеризацию на этом датафрейме.
 
-```{r}
+```{r dendrogram, fig.height=25, fig.width=35}
+
+rownames(cor_data) <- paste0("id-", seq(1:nrow(cor_data)))
+scaled_cor_data <- scale(cor_data)
+dist_cor_data <- dist(scaled_cor_data, method = "euclidean")
+hc <- hclust(d = dist_cor_data, method = "ward.D2")
+
+Cluster_full <- fviz_dend(
+  hc, k = 4, show_labels = FALSE,  main = "",
+  k_colors = "lancet", rect = TRUE, horiz = TRUE, 
+)
+
+dend_cuts <- cut(as.dendrogram(hc), h = 17)
+
+Cluster_1 <- fviz_dend(dend_cuts$lower[[1]], 
+          main = "Кластер 1", 
+          k = 1, k_colors = pal_lancet()(4)[1], 
+          cex = 1, label_cols = "black",  
+          ggtheme = theme_custom, 
+          )
+Cluster_2 <- fviz_dend(dend_cuts$lower[[2]], 
+          main = "Кластер 2",
+          k = 1, k_colors = pal_lancet()(4)[2], 
+          cex = 1, label_cols = "black", 
+          ggtheme = theme_custom,  
+          )
+Cluster_3 <- fviz_dend(dend_cuts$lower[[3]], 
+          main = "Кластер 3",
+          k = 1, k_colors = pal_lancet()(4)[3], 
+          cex = 1, label_cols = "black",  
+          ggtheme = theme_custom, 
+          )
+Cluster_4 <- fviz_dend(dend_cuts$lower[[4]], 
+          main = "Кластер 4",  
+          k = 1, k_colors = pal_lancet()(4)[4], 
+          cex = 1, label_cols = "black", 
+          ggtheme = theme_custom, 
+          )
+
+ggarrange( Cluster_full, 
+           ggarrange(Cluster_4, Cluster_3, Cluster_2, Cluster_1, ncol = 1),
+           nrow = 1, widths = c(1, 3) )
+
+
 
 
 ```
 
-## Задание 6 ?????????????????????????????????????????????????????
+## Задание 6
 
 - Сделайте одновременный график heatmap и иерархической кластеризации. 
-- Интерпретируйте результат.
 
-```{r pheatmap}
+```{r pheatmap, fig.height=10, fig.width=15}
 
-library(pheatmap)
-scale_cor_data <- scale(cor_data)
-
-pheatmap(scale_cor_data,
+pheatmap(scaled_cor_data,
          show_rownames = FALSE, 
-         clustering_distance_rows = dist(scale_cor_data),
+         clustering_distance_rows = dist_cor_data,
          clustering_method = "ward.D2", 
-         cutree_rows = 5,
-         cutree_cols = length(colnames(scale_cor_data)),
+         cutree_rows = 4,
+         cutree_cols = length(colnames(scaled_cor_data)),
+         treeheight_row = 200, 
          angle_col = 45, 
-         main = "Dendrograms for clustering rows and columns with heatmap")
+         angle_row = 45, 
+         main = "Тепловая карта с дендрограммами строк и столбцов")
+
+```
+- Интерпретируйте результат
+
+1. **Цвет** на тепловой карте представляет стандартизованные значения для каждой строки и переменной. Красный и синий цвета указывают на отклонения от среднего значения (красный — положительное отклонение, синий — отрицательное).
+2. **Кластеризация по строкам** группирует объекты (пациентов) с похожими характеристиками по переменным. Результаты кластеризации строк согласуются с дендрограммой кластеров, полученной на предыдущем этапе.
+3. **Кластеризация по столбцам** объединяет переменные, которые имеют схожие паттерны значений, например: *birth_weight* и *gestational_age*, что соответствует корреляционному анализу.
+
+## Задание 7
+
+- Проведите PCA анализ на этих данных. 
+
+```{r pca, fig.width=10}
+
+scaled_cor_data_pca <- prcomp(scaled_cor_data, scale = FALSE) 
+summary(scaled_cor_data_pca)
+fviz_eig(scaled_cor_data_pca, addlabels = T, 
+         xlab = "", ylab = "Процент дисперсии",
+         ggtheme = theme_custom,
+         main = "Объясненная дисперсия компонентов PCA")
 
 ```
 
+- Проинтерпретируйте результат. Нужно ли применять шкалирование для этих данных перед проведением PCA?
+
+Согласно **Cumulative Proportion**, первые три компоненты объясняют около 75% вариации данных, что является хорошим показателем, так как большая часть информации сохраняется в этих трех компонентах.
+
+Шкалирование данных перед PCA необходимо, чтобы привести все переменные к одному масштабу и избежать доминирования переменных с большими диапазонами значений. Однако для бинарных переменных нормирование может исказить информацию. В нашем случае данные уже предварительно нормированы, и остались только количественные переменные, для которых нормирование полезно.
+
+## Задание 8
+
+- Постройте biplot график для PCA. 
+- Раскрасьте его по значению колонки 'dead'.
+
+```{r biplot, fig.height=8, fig.width=8}
+
+ggbiplot(scaled_cor_data_pca, 
+         scale=0,
+         groups = cleaned_data$dead, 
+         point.size	= 2, 
+         ellipse = TRUE, ellipse.alpha = 0.2,
+         varname.size = 7,
+         alpha = 0.7) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
+  theme_custom+
+  theme(legend.direction = 'horizontal', legend.position = 'top')
+
+```
+
+## Задание 9???????????????????????????????????
+
+- Переведите последний график в 'plotly'. При наведении на точку нужно, чтобы отображалось id пациента.
+
+```{r plotly, fig.height=15, fig.width=15}
+
+
+
+ggplotly(
+ggbiplot(scaled_cor_data_pca, 
+         scale=0,
+         groups = cleaned_data$dead, 
+         ellipse = TRUE, ellipse.alpha = 0.2,
+         varname.size = 4, 
+         point.size	= 1, alpha = 0.7, 
+         labels = rownames(cor_data), 
+         labels.size = 0
+         ) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
+  theme_custom,
+  tooltip = c("x", "labels")
+)
+
+# rownames(cor_data)
+
+```
