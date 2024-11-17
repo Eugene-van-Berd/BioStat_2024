@@ -26,9 +26,12 @@ library(ggsci)
 library(pheatmap)
 library(ggbiplot)
 library(plotly)
+library(tidymodels)
+library(embed)
 
 conflict_prefer("alpha", "ggplot2")
 conflict_prefer("filter", "dplyr")
+conflict_prefer("t_test", "rstatix")
 
 theme_custom <- theme_bw()+ theme(
     plot.title = element_text(size = 30, hjust = 0.5),
@@ -40,21 +43,25 @@ theme_custom <- theme_bw()+ theme(
     legend.text = element_text(size = 20)
   )
 
+set.seed(2210)
+
 ```
 
 ## Задание 1
 
--   Загрузите датасет. Это данные о 671 младенце с очень низкой массой тела (\<1600 грамм), собранные в Duke University Medical Center доктором Майклом О’Ши c 1981 по 1987 г. Описание переменных [здесь](https://hbiostat.org/data/repo/cvlbw). 
+-   Загрузите датасет. Это данные о 671 младенце с очень низкой массой тела (\<1600 грамм), собранные в Duke University Medical Center доктором Майклом О’Ши c 1981 по 1987 г. Описание переменных [здесь](https://hbiostat.org/data/repo/cvlbw).
 -   Переменными исхода являются колонки **dead**, а также **hospstay** - время от рождения до смерти или выписки (выводятся из 'birth' и 'exit', 7 пациентов были выписаны до рождения).
 -   Сделайте копию датасета, в которой удалите колонки с количеством пропусков больше 100, а затем удалите все строки с пропусками.
 
 ```{r read, include=FALSE}
 
+#Исходные данные
 data_raw <- read_rds("data/raw/very_low_birthweight.RDS")
 
 skim(data_raw)[2:3] %>% 
   arrange(desc(n_missing))
 
+#Очистка данных
 data <- data_raw %>% 
   select(where(~ sum(is.na(.)) <= 100)) %>% 
   # filter(if_any(everything(), is.na))
@@ -69,9 +76,9 @@ skim(data)[2:3] %>%
 
 ## Задание 2
 
--   Постройте графики плотности распределения для числовых переменных. 
--   Преобразуйте категориальные переменные в факторы. 
--   Удалите выбросы, если таковые имеются. 
+-   Постройте графики плотности распределения для числовых переменных.
+-   Преобразуйте категориальные переменные в факторы.
+-   Удалите выбросы, если таковые имеются.
 -   Для любых двух числовых переменных раскрасьте график по переменной **inout**.
 
 ```{r density, fig.height=15, fig.width=15}
@@ -131,8 +138,8 @@ cleaned_data %>%
 
 ## Задание 3
 
-- Проведите тест на сравнение значений колонки **min_ph** между группами в переменной **inout**. Вид статистического теста определите самостоятельно. 
-- Визуализируйте результат через библиотеку 'rstatix'.
+-   Проведите тест на сравнение значений колонки **min_ph** между группами в переменной **inout**. Вид статистического теста определите самостоятельно.
+-   Визуализируйте результат через библиотеку 'rstatix'.
 
 ```{r t_test, fig.height=8}
 
@@ -156,14 +163,15 @@ ggplot(cleaned_data)+
   
 
 ```
-- Как бы вы интерпретировали результат, если бы знали, что более низкое значение **min_ph** ассоциировано с более низкой выживаемостью?
+
+-   Как бы вы интерпретировали результат, если бы знали, что более низкое значение **min_ph** ассоциировано с более низкой выживаемостью?
 
 Для сравнения минимального уровня pH в первые четыре дня жизни ребенка в зависимости от места рождения (в медицинском центре Университета Дьюка или за его пределами) был применен **t-критерий Стьюдента**. Предварительно была проведена проверка распределений на нормальность с использованием **критерия Шапиро—Уилка**. Анализ выявил статистически значимые различия между группами: дети, рожденные в центре Дьюка, в среднем имеют более высокий уровень pH, что может свидетельствовать о лучших шансах на выживание.
 
 ## Задание 4
 
-- Сделайте новый датафрейм, в котором оставьте только континуальные или ранговые данные, кроме 'birth', 'year' и 'exit'. - Сделайте корреляционный анализ этих данных. 
-- Постройте два любых типа графиков для визуализации корреляций.
+-   Сделайте новый датафрейм, в котором оставьте только континуальные или ранговые данные, кроме 'birth', 'year' и 'exit'. - Сделайте корреляционный анализ этих данных.
+-   Постройте два любых типа графиков для визуализации корреляций.
 
 ```{r cor, fig.width=8}
 
@@ -184,20 +192,23 @@ cor(cor_data) %>%
 
 ## Задание 5
 
-- Постройте иерархическую кластеризацию на этом датафрейме.
+-   Постройте иерархическую кластеризацию на этом датафрейме.
 
-```{r dendrogram, fig.height=25, fig.width=35}
+```{r dendrogram, fig.height=25, fig.width=35, warning=FALSE}
 
+#Подготовка данных
 rownames(cor_data) <- paste0("id-", seq(1:nrow(cor_data)))
 scaled_cor_data <- scale(cor_data)
 dist_cor_data <- dist(scaled_cor_data, method = "euclidean")
 hc <- hclust(d = dist_cor_data, method = "ward.D2")
 
+#Полная дендрограмма
 Cluster_full <- fviz_dend(
   hc, k = 4, show_labels = FALSE,  main = "",
   k_colors = "lancet", rect = TRUE, horiz = TRUE, 
 )
 
+#Нарезка по кластерам и дендрограмма кластеров
 dend_cuts <- cut(as.dendrogram(hc), h = 17)
 
 Cluster_1 <- fviz_dend(dend_cuts$lower[[1]], 
@@ -225,6 +236,7 @@ Cluster_4 <- fviz_dend(dend_cuts$lower[[4]],
           ggtheme = theme_custom, 
           )
 
+#Обобщенный график
 ggarrange( Cluster_full, 
            ggarrange(Cluster_4, Cluster_3, Cluster_2, Cluster_1, ncol = 1),
            nrow = 1, widths = c(1, 3) )
@@ -236,7 +248,7 @@ ggarrange( Cluster_full,
 
 ## Задание 6
 
-- Сделайте одновременный график heatmap и иерархической кластеризации. 
+-   Сделайте одновременный график heatmap и иерархической кластеризации.
 
 ```{r pheatmap, fig.height=10, fig.width=15}
 
@@ -252,20 +264,22 @@ pheatmap(scaled_cor_data,
          main = "Тепловая карта с дендрограммами строк и столбцов")
 
 ```
-- Интерпретируйте результат
 
-1. **Цвет** на тепловой карте представляет стандартизованные значения для каждой строки и переменной. Красный и синий цвета указывают на отклонения от среднего значения (красный — положительное отклонение, синий — отрицательное).
-2. **Кластеризация по строкам** группирует объекты (пациентов) с похожими характеристиками по переменным. Результаты кластеризации строк согласуются с дендрограммой кластеров, полученной на предыдущем этапе.
-3. **Кластеризация по столбцам** объединяет переменные, которые имеют схожие паттерны значений, например: *birth_weight* и *gestational_age*, что соответствует корреляционному анализу.
+-   Интерпретируйте результат
+
+1.  **Цвет** на тепловой карте представляет стандартизованные значения для каждой строки и переменной. Красный и синий цвета указывают на отклонения от среднего значения (красный — положительное отклонение, синий — отрицательное).
+2.  **Кластеризация по строкам** группирует объекты (пациентов) с похожими характеристиками по переменным. Результаты кластеризации строк согласуются с дендрограммой кластеров, полученной на предыдущем этапе.
+3.  **Кластеризация по столбцам** объединяет переменные, которые имеют схожие паттерны значений, например: *birth_weight* и *gestational_age*, что соответствует корреляционному анализу.
 
 ## Задание 7
 
-- Проведите PCA анализ на этих данных. 
+-   Проведите PCA анализ на этих данных.
 
 ```{r pca, fig.width=10}
 
 scaled_cor_data_pca <- prcomp(scaled_cor_data, scale = FALSE) 
 summary(scaled_cor_data_pca)
+
 fviz_eig(scaled_cor_data_pca, addlabels = T, 
          xlab = "", ylab = "Процент дисперсии",
          ggtheme = theme_custom,
@@ -273,7 +287,7 @@ fviz_eig(scaled_cor_data_pca, addlabels = T,
 
 ```
 
-- Проинтерпретируйте результат. Нужно ли применять шкалирование для этих данных перед проведением PCA?
+-   Проинтерпретируйте результат. Нужно ли применять шкалирование для этих данных перед проведением PCA?
 
 Согласно **Cumulative Proportion**, первые три компоненты объясняют около 75% вариации данных, что является хорошим показателем, так как большая часть информации сохраняется в этих трех компонентах.
 
@@ -281,12 +295,12 @@ fviz_eig(scaled_cor_data_pca, addlabels = T,
 
 ## Задание 8
 
-- Постройте biplot график для PCA. 
-- Раскрасьте его по значению колонки 'dead'.
+-   Постройте biplot график для PCA.
+-   Раскрасьте его по значению колонки 'dead'.
 
 ```{r biplot, fig.height=8, fig.width=8}
 
-ggbiplot(scaled_cor_data_pca, 
+biplot <- ggbiplot(scaled_cor_data_pca, 
          scale=0,
          groups = cleaned_data$dead, 
          point.size	= 2, 
@@ -299,33 +313,464 @@ ggbiplot(scaled_cor_data_pca,
   theme_custom+
   theme(legend.direction = 'horizontal', legend.position = 'top')
 
+
+biplot
 ```
 
-## Задание 9???????????????????????????????????
+## Задание 9
 
-- Переведите последний график в 'plotly'. При наведении на точку нужно, чтобы отображалось id пациента.
+-   Переведите последний график в 'plotly'. При наведении на точку нужно, чтобы отображалось id пациента.
 
 ```{r plotly, fig.height=15, fig.width=15}
 
-
-
 ggplotly(
-ggbiplot(scaled_cor_data_pca, 
+  ggbiplot(scaled_cor_data_pca,
          scale=0,
-         groups = cleaned_data$dead, 
+         groups = cleaned_data$dead,
          ellipse = TRUE, ellipse.alpha = 0.2,
          varname.size = 4, 
          point.size	= 1, alpha = 0.7, 
-         labels = rownames(cor_data), 
-         labels.size = 0
+         labels = rownames(cor_data)
          ) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom, 
+  tooltip = c("labels")
+)
+
+```
+
+-   ⚠️ **Как сделать так, чтобы на графике были points, а не labels?**
+
+## Задание 10
+
+-   Дайте содержательную интерпретацию PCA анализу. Почему использовать колонку 'dead' для выводов об ассоциации с выживаемостью некорректно?
+
+На графике двух главных компонент **(biplot)** видно, что группы переменной Dead плохо разделены между собой. Это указывает на то, что PCA в данном случае недостаточно хорошо выделяет различия между группами. Однако можно отметить, что увеличение значений переменных platelet_n, min_ph и apgar_minute связано с большей вероятностью смерти ребенка.
+
+## Задание 11
+
+-   Приведите ваши данные к размерности в две колонки через UMAP.
+
+```{r UMAP, fig.height=8, fig.width=8}
+
+cor_data_umap <- 
+  recipe(~., data = cor_data) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors()) %>%  
+  prep() %>%  
+  juice()
+
+cor_data_umap %>%
+  ggplot(aes(UMAP1, UMAP2)) + 
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom
+
+```
+
+-   Сравните результаты отображения точек между алгоритмами PCA и UMAP.
+
+Распределения точек на графиках PCA и UMAP различаются. В результате точки, связанные с умершими пациентами, занимают разные положения на графиках.
+
+## Задание 12 
+
+-   Давайте самостоятельно увидим, что снижение размерности – это группа методов, славящаяся своей неустойчивостью. Измените основные параметры UMAP (n_neighbors и min_dist) и проанализируйте, как это влияет на результаты.
+
+```{r neighbors}
+
+for (i in seq(2, nrow(cor_data), 25)) {
+  print (
+      recipe(~., data = cor_data) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors(), neighbors = i ) %>%  
+  prep() %>%  
+  juice() %>% 
+  ggplot(aes(UMAP1, UMAP2)) + #  # можно добавить раскраску 
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead", title = paste0("UMAP (neighbors = ", i, ")")) +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom
+  )
+}
+
+```
+
+```{r min_dist}
+
+for (i in seq(0, 1, 0.05)) {
+  print (
+      recipe(~., data = cor_data) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors(), min_dist = i ) %>%  
+  prep() %>%  
+  juice() %>% 
+  ggplot(aes(UMAP1, UMAP2)) + #  # можно добавить раскраску 
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead", title = paste0("UMAP (min_dist = ", i, ")")) +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom
+  )
+}
+
+```
+
+Оба параметра UMAP — n_neighbors и min_dist — существенно влияют на форму распределения данных и положение точек на графике. Это демонстрирует чувствительность метода к их настройке. 
+
+## Задание 13 
+
+-   Давайте самостоятельно увидим, что снижение размерности – это группа методов, славящаяся своей неустойчивостью. Пермутируйте 50% и 100% колонки 'bwt'.
+
+```{r bwt}
+
+# Случайная пермутация всех строк
+cor_data_100 <- cor_data %>% 
+  mutate(birth_weight = sample(birth_weight)) 
+
+# Случайная пермутация 50% строк
+cor_data_50 <- cor_data %>% 
+  mutate(sample = sample(1:n()),
+  birth_weight = ifelse(sample > n()/2, 
+                        sample(birth_weight), 
+                        birth_weight)) %>% 
+  select(-sample)  
+    
+```
+
+-   Проведите PCA и UMAP анализ.
+
+```{r PCA_permute, fig.height=15, fig.width=25}
+
+cor_data_50_pca <- prcomp(cor_data_50, scale = TRUE) 
+cor_data_100_pca <- prcomp(cor_data_100, scale = TRUE) 
+
+cat("PCA на исходных данных\n") 
+summary(scaled_cor_data_pca)
+cat("\nPCA на данных со случайной пермутацией 50% строк\n") 
+summary(cor_data_50_pca)
+cat("\nPCA на данных со случайной пермутацией 100% строк\n") 
+summary(cor_data_100_pca)
+
+biplot_50 <- ggbiplot(cor_data_50_pca, 
+         scale=0,
+         groups = cleaned_data$dead, 
+         point.size	= 2, 
+         ellipse = TRUE, ellipse.alpha = 0.2,
+         varname.size = 7,
+         alpha = 0.7) +
   labs(fill = "Dead", colour = "Dead") +
   scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
   scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
-  theme_custom,
-  tooltip = c("x", "labels")
-)
+  theme_custom+
+  theme(legend.direction = 'horizontal', legend.position = 'top')
 
-# rownames(cor_data)
+biplot_100 <- ggbiplot(cor_data_100_pca, 
+         scale=0,
+         groups = cleaned_data$dead, 
+         point.size	= 2, 
+         ellipse = TRUE, ellipse.alpha = 0.2,
+         varname.size = 7,
+         alpha = 0.7) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
+  theme_custom+
+  theme(legend.direction = 'horizontal', legend.position = 'top')
+
+ggarrange(biplot+
+            ggtitle("Birth weight permutation - 0%"), 
+          ggarrange(
+          biplot_50+
+            ggtitle("Birth weight permutation - 50%"), 
+          biplot_100+
+            ggtitle("Birth weight permutation - 100%"), 
+          ncol = 1), nrow = 1)
 
 ```
+
+```{r UMAP_permute, fig.height=10, fig.width=20}
+
+ggarrange(
+  
+  cor_data_umap %>%
+  ggplot(aes(UMAP1, UMAP2)) + 
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom+
+            ggtitle("Birth weight permutation - 0%"), 
+          
+          ggarrange(
+            
+  recipe(~., data = cor_data_50) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors()) %>%  
+  prep() %>%  
+  juice() %>% 
+  ggplot(aes(UMAP1, UMAP2)) +
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom+
+            ggtitle("Birth weight permutation - 50%"), 
+          
+  recipe(~., data = cor_data_100) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors()) %>%  
+  prep() %>%  
+  juice() %>% 
+  ggplot(aes(UMAP1, UMAP2)) +
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  theme_custom+
+            ggtitle("Birth weight permutation - 100%"), 
+          
+  ncol = 1), nrow = 1)
+
+```
+
+-   Наблюдаете ли вы изменения в куммулятивном проценте объяснённой вариации PCA? В итоговом представлении данных на биплотах для PCA? Отличается ли визуализация данных?
+
+С увеличением процента пермутации кумулятивный процент объяснённой вариации PCA снижается с 75% до 68% по первым трём главным компонентам (PC1-PC3). На биплоте PCA при 50% пермутации распределение точек остаётся схожим с исходным, сохраняется основная структура данных, однако при 100% пермутации наблюдаются кардинальные изменения в расположении точек. При визуализации UMAP распределение точек меняется при каждой пермутации, что указывает на большую чувствительность метода.
+
+## Задание 14
+
+-   Проведите анализ, как в **шагах 4-6** для оригинального с удалением всех строк с пустыми значениями (т.е. включая колонки с количеством пропущенных значений больше 100),
+-   Проведите анализ, как в **шагах 4-6** для оригинального датафрейма с импутированием пустых значений средним или медианой.
+
+```{r data}
+
+# Удлим строки с путыми значениями из оригинального датасета
+data_na <- data_raw %>% 
+# Оставим только количественные и порядковые переменные
+  transmute(
+    stay_time = hospstay, min_ph = lowph, platelet_n = pltct,
+    birth_weight = bwt, gestational_age = gest, labor_duration = lol, apgar_minute = apg1, 
+    periv_hemorrhage = factor(pvh, levels = c("absent", "possible", "definite"), ordered = TRUE),
+    intra_hemorrhage = factor(ivh, levels = c("absent", "possible", "definite"), ordered = TRUE),
+    periv_intra_echodense = factor(ipe, levels = c("absent", "possible", "definite"), ordered = TRUE), 
+    dead = as.character(dead)) %>% 
+# Уберем выбросы, порядковые значением переведем в количественные
+   mutate(across(where(is.numeric), 
+                ~ case_when(
+                  . < quantile(., 0.25, na.rm = TRUE) - 1.5 * IQR(., na.rm = TRUE) | 
+                  . > quantile(., 0.75, na.rm = TRUE) + 1.5 * IQR(., na.rm = TRUE) ~ NA,
+                  TRUE ~ .
+                )) ,
+          across(where(is.factor), ~as.numeric(.)), 
+          dead = factor(dead, levels = c(0, 1), labels = c("no", "yes")))%>% 
+# Удалим все пропуски и ошибки
+  drop_na() %>% 
+  filter(stay_time >= 0)
+
+# Заменим путые значения из оригинального датасета на медианные
+data_median <- data_raw %>% 
+# Оставим только количественные и порядковые переменные
+  transmute(
+    stay_time = hospstay, min_ph = lowph, platelet_n = pltct,
+    birth_weight = bwt, gestational_age = gest, labor_duration = lol, apgar_minute = apg1,  
+    periv_hemorrhage = factor(pvh, levels = c("absent", "possible", "definite"), ordered = TRUE),
+    intra_hemorrhage = factor(ivh, levels = c("absent", "possible", "definite"), ordered = TRUE),
+    periv_intra_echodense = factor(ipe, levels = c("absent", "possible", "definite"), ordered = TRUE), 
+    dead = as.character(dead)) %>% 
+# Уберем выбросы, пропуски заменим на медианы, порядковые значением переведем в количественные
+  mutate(across(where(is.numeric), 
+                ~ case_when(
+                  . < quantile(., 0.25, na.rm = TRUE) - 1.5 * IQR(., na.rm = TRUE) | 
+                  . > quantile(., 0.75, na.rm = TRUE) + 1.5 * IQR(., na.rm = TRUE) ~ NA,
+                  TRUE ~ .
+                )),
+         across(where(is.numeric), ~ifelse(is.na(.), median(., na.rm = TRUE), .)), 
+         across(where(is.ordered), ~as.numeric(ifelse(is.na(.), 1, .))), 
+         dead = factor(dead, levels = c(0, 1), labels = c("no", "yes")))%>% 
+# Удалим все ошибки
+  filter(stay_time >= 0)
+
+```
+
+```{r cor2, fig.width=15}
+
+cor(cor_data) %>% network_plot(min_cor = .2)+
+  ggtitle("Корреляция на исходных данных")+
+  theme_custom
+
+cor(data_na %>% select(-dead)) %>% network_plot(min_cor = .1)+
+  ggtitle("Корреляция на данных с удалением всех строк с пустыми значениями")+
+  theme_custom
+
+cor(data_median %>% select(-dead)) %>% 
+  network_plot(min_cor = .2)+
+  ggtitle("Корреляция на данных с импутированием пустых значений медианой")+
+  theme_custom
+
+```
+
+```{r dendrogram2, fig.height=25, fig.width=35}
+
+Cluster_full+ggtitle("Исходная дендрограмма")+theme_custom
+
+scaled_data_na <- scale(data_na %>% select(-dead))
+dist_data_na <- dist(scaled_data_na, method = "euclidean")
+hc_na <- hclust(d = dist_data_na, method = "ward.D2")
+
+fviz_dend(
+  hc_na, k = 4, show_labels = FALSE,  main = "",
+  k_colors = "lancet", rect = TRUE, horiz = TRUE, 
+)+ggtitle("Дендрограмма на данных с удалением всех строк с пустыми значениями")+theme_custom
+
+
+scaled_data_median <- scale(data_median %>% select(-dead))
+dist_data_median <- dist(scaled_data_median, method = "euclidean")
+hc_median <- hclust(d = dist_data_median, method = "ward.D2")
+
+fviz_dend(
+  hc_median, k = 4, show_labels = FALSE,  main = "",
+  k_colors = "lancet", rect = TRUE, horiz = TRUE, 
+)+ggtitle("Дендрограмма на данных с импутированием пустых значений медианой")+theme_custom
+
+
+```
+
+```{r pheatmap2, fig.height=10, fig.width=15}
+
+pheatmap(scaled_cor_data,
+         show_rownames = FALSE, 
+         clustering_distance_rows = dist_cor_data,
+         clustering_method = "ward.D2", 
+         cutree_rows = 4,
+         cutree_cols = length(colnames(scaled_cor_data)),
+         treeheight_row = 200, 
+         angle_col = 45, 
+         angle_row = 45, 
+         main = "Тепловая карта с дендрограммами строк и столбцов на исходных данных")
+
+pheatmap(scaled_data_na,
+         show_rownames = FALSE, 
+         clustering_distance_rows = dist_data_na,
+         clustering_method = "ward.D2", 
+         cutree_rows = 4,
+         cutree_cols = length(colnames(scaled_data_na)),
+         treeheight_row = 200, 
+         angle_col = 45, 
+         angle_row = 45, 
+         main = "Тепловая карта с дендрограммами строк и столбцов на данных с удалением всех строк с пустыми значениями")
+
+pheatmap(scaled_data_median,
+         show_rownames = FALSE, 
+         clustering_distance_rows = dist_data_median,
+         clustering_method = "ward.D2", 
+         cutree_rows = 4,
+         cutree_cols = length(colnames(scaled_data_median)),
+         treeheight_row = 200, 
+         angle_col = 45, 
+         angle_row = 45, 
+         main = "Тепловая карта с дендрограммами строк и столбцов на данных с импутированием пустых значений медианой")
+
+```
+
+-   Как отличаются получившиеся результаты? В чем преимущества и недостатки каждого подхода?
+
+Добавление новых переменных и импутирование пустых значений даёт разные результаты в корреляционном анализе, а также изменяет тепловые карты и дендрограммы, что отражает влияние количества переменных, наблюдений и выбранных методов импутации.
+
+Для точности анализа лучше удалять переменные и наблюдения с большим количеством пропусков. Для учета большего числа переменных целесообразно использовать методы импутации.
+
+## Задание 15 
+
+-   Сделайте то же, что в пункте 14, но для методов снижения размерности – PCA и UMAP.
+
+```{r pca2, fig.width=15}
+
+cat("PCA на исходных данных\n") 
+summary(scaled_cor_data_pca)
+cat("\nPCA на данных с удалением всех строк с пустыми значениями\n") 
+summary(prcomp(scaled_data_na, scale = FALSE))
+cat("\nPCA на данных с импутированием пустых значений медианой\n") 
+summary(prcomp(scaled_data_median, scale = FALSE))
+
+  biplot+ggtitle("PCA Biplot на исходных данных")+theme_custom
+  
+  ggbiplot(prcomp(scaled_data_na, scale = FALSE) , 
+         scale=0,
+         groups = data_na$dead,
+         point.size	= 2, 
+         ellipse = TRUE, ellipse.alpha = 0.2,
+         varname.size = 5,
+         alpha = 0.7) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
+  theme_custom+
+  theme(legend.direction = 'horizontal', legend.position = 'top')+
+  ggtitle("PCA Biplot на данных с удалением всех строк с пустыми значениями")+theme_custom
+  
+  ggbiplot(prcomp(scaled_data_median, scale = FALSE) , 
+         scale=0,
+         groups = data_median$dead,
+         point.size	= 2, 
+         ellipse = TRUE, ellipse.alpha = 0.2,
+         varname.size = 5,
+         alpha = 0.7) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  scale_fill_manual(values = c("yes" = "coral1", "no" = "palegreen1")) +
+  theme_custom+
+  theme(legend.direction = 'horizontal', legend.position = 'top')+
+  ggtitle("PCA Biplot на данных с импутированием пустых значений медианой")+theme_custom
+
+```
+
+```{r UMAP2, fig.width=15}
+
+cor_data_umap %>%
+  ggplot(aes(UMAP1, UMAP2)) + 
+  geom_point(aes(colour = cleaned_data$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  ggtitle("UMAP на исходных данных") +
+  theme_custom
+
+
+  recipe(~., data = data_na %>% select(-dead)) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors()) %>%  
+  prep() %>%  
+  juice() %>% 
+  ggplot(aes(UMAP1, UMAP2)) + 
+  geom_point(aes(colour = data_na$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  ggtitle("UMAP на данных с удалением всех строк с пустыми значениями") +
+  theme_custom
+
+  
+  recipe(~., data = data_median %>% select(-dead)) %>% 
+  step_normalize(all_predictors()) %>%
+  step_umap(all_predictors()) %>%  
+  prep() %>%  
+  juice() %>% 
+  ggplot(aes(UMAP1, UMAP2)) + 
+  geom_point(aes(colour = data_median$dead),
+                 alpha = 0.7, size = 2) +
+  labs(fill = "Dead", colour = "Dead") +
+  scale_color_manual(values = c("yes" = "coral3", "no" = "palegreen3")) +
+  ggtitle("UMAP на данных с импутированием пустых значений медианой") +
+  theme_custom
+```
+
+-   Проанализируйте результаты.
+
+Оба метода чувствительны к изменениям, однако для PCA результаты изменяются менее кардинально, чем для UMAP. Также на результаты анализа могли существенно повлиять порядковые переменные (pvh, ivh, ipe), которые после нормализации могли значительно повлиять на общую структуру данных.
+
+-   ⚠️ **А стоило ли вообще включать pvh, ivh, ipe в анализ?**
+
