@@ -1,0 +1,188 @@
+---
+title: "FWER_FDR_task"
+author: "Evgenii Berdinskikh"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  fig.path = "data/pics/figure-"
+  )
+
+library(tidyverse)
+library(conflicted)
+library(skimr)
+library(rstatix)
+library(ggpubr)
+library(progress)
+
+conflict_prefer("alpha", "ggplot2")
+conflict_prefer("filter", "dplyr")
+
+theme_custom <- theme_bw()+ theme(
+    plot.title = element_text(size = 30, hjust = 0.5),
+    plot.subtitle = element_text(size = 25, hjust = 0.5),
+    strip.text = element_text(size = 20),
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 25),
+    legend.title = element_text(size = 25),
+    legend.text = element_text(size = 20)
+  )
+
+```
+
+## Загрузка файла
+
+```{r read, message=FALSE}
+
+set.seed(2210)
+
+#Подобие генеральное совокупности
+soccer_general <- read_delim("data/raw/soccer.csv", show_col_types = FALSE, delim = ";") %>% 
+  transmute(Name, Position = as.factor(Position), Nationality = as.factor(Nationality), Height ) %>% 
+  filter(Nationality %in% c("Spanish", "Italian", "German", "English", "Argentinian"))
+
+#Выборка из 150 футболистов
+soccer_sample <- soccer_general %>%
+  slice_sample(n = 150)
+
+head(soccer_sample)
+
+```
+
+## Задание 1
+- Постройте доверительные интервалы для попарных разниц между средними (без поправок и с поправкой Бонферрони). 
+- Покрывают ли интервалы реальную разницу между средним ростом? Иллюстрации приветствуются.
+
+```{r CI, fig.width=15}
+
+# Реальная разница в среднем росте для игроков разных позиций
+E_difference <- pairwise_t_test(soccer_general, Height ~ Position, pool.sd = FALSE, detailed = TRUE) %>% 
+  transmute(difference = as.factor(paste0(group1, "/", group2)), estimate)
+
+# Оценка разницы в среднем росте для игроков разных позиций без поправки на множественное сравнение
+pairwise_none_adj <- pairwise_t_test(data = soccer_sample,  Height ~ Position, 
+                                   conf.level = (1 - 0.05), p.adjust.method = "none", 
+                                   pool.sd = FALSE, detailed = TRUE) %>% 
+  transmute(difference = as.factor(paste0(group1, "/", group2)), estimate, conf.low, conf.high, p.adj)
+
+# Оценка разницы в среднем росте для игроков разных позиций с поправкой Бонферрони
+pairwise_bonferroni_adj <- pairwise_t_test(data = soccer_sample,  Height ~ Position,
+                                   conf.level = (1 - 0.05/nrow(pairwise_none_adj)),
+                                   p.adjust.method = "bonferroni",
+                                   pool.sd = FALSE, detailed = TRUE) %>%
+  transmute(difference = as.factor(paste0(group1, "/", group2)), estimate, conf.low, conf.high, p.adj)
+
+# Доверительные интервалы для попарных разниц между средними без поправок 
+ggplot(pairwise_none_adj)+
+  geom_pointrange(aes(x = fct_reorder(difference, estimate, .desc = TRUE), y = estimate, 
+                      ymin = conf.low, ymax = conf.high, colour = difference), 
+                  size = 1, show.legend = FALSE)+
+  geom_errorbar(aes(x = fct_reorder(difference, estimate, .desc = TRUE), y = estimate, 
+                    ymin = conf.low, ymax = conf.high, colour = difference), 
+                linewidth = 2, show.legend = FALSE)+
+  geom_point(data = E_difference, aes(x = difference, y = estimate), 
+             size = 7, shape = 18) +
+  geom_hline(yintercept = 0, color = "firebrick4", linetype = "dashed", linewidth = 1)+
+  scale_colour_brewer(palette = "Dark2")+
+  scale_y_continuous(breaks = seq(-20, 20, 2))+
+  labs(x = "", y = "Разница в росте",
+       title = "Оценка разницы в росте без поправок")+
+  coord_flip()+
+  theme_custom +
+  annotate("point", x = 6.5, y = 8, 
+           size = 5, shape = 18) +
+  annotate("text", x = 6.5, y = 8.2, hjust = 0,
+            size = 5, label = "  Реальная разница")
+
+# Доверительные интервалы для попарных разниц между средними с поправкой Бонферрони 
+ggplot(pairwise_bonferroni_adj)+
+  geom_pointrange(aes(x = fct_reorder(difference, estimate, .desc = TRUE), y = estimate, 
+                      ymin = conf.low, ymax = conf.high, colour = difference), 
+                  size = 1, show.legend = FALSE)+
+  geom_errorbar(aes(x = fct_reorder(difference, estimate, .desc = TRUE), y = estimate, 
+                    ymin = conf.low, ymax = conf.high, colour = difference), 
+                linewidth = 2, show.legend = FALSE)+
+  geom_point(data = E_difference, aes(x = difference, y = estimate), 
+             size = 7, shape = 18) +
+  geom_hline(yintercept = 0, color = "firebrick4", linetype = "dashed", linewidth = 1)+
+  scale_colour_brewer(palette = "Dark2")+
+  scale_y_continuous(breaks = seq(-20, 20, 2))+
+  labs(x = "", y = "Разница в росте", 
+       title = "Оценка разницы в росте с поправкой Бонферрони")+
+  coord_flip()+
+  theme_custom+
+  annotate("point", x = 6.5, y = 8, 
+           size = 5, shape = 18) +
+  annotate("text", x = 6.5, y = 8.2, hjust = 0,
+            size = 5, label = "  Реальная разница")
+
+```
+
+## Задание 2
+- Проведите попарные тесты для разниц между средними (без поправок, с поправкой Холма и поправкой Бенджамини-Хохберга). 
+- Сколько открытий получилось в каждом случае? Сколько из них ложные?
+
+```{r discoveries, fig.width=10}
+
+E_difference %>% pull(estimate)
+
+raw <- c()        
+bonferroni <- c()     
+holm <- c()     
+BH <- c()     
+pb <- progress_bar$new(
+  format = "  Processing [:bar] :percent in :elapsedfull",
+  total = 1000, clear = FALSE, width= 100)
+
+for (i in (1:1000)) {
+  
+  pb$tick()
+  Sys.sleep(1 / 100)
+  
+  set.seed(i)
+  soccer_simulation <- soccer_general %>%
+  slice_sample(n = 150)
+  
+  pairwise_t_test(soccer_simulation, Height ~ Position,
+                  p.adjust.method = "none", pool.sd = FALSE) %>% 
+  filter(p.adj < 0.05) %>% nrow() -> raw[i]
+  
+  pairwise_t_test(soccer_simulation, Height ~ Position,
+                  p.adjust.method = "bonferroni", pool.sd = FALSE) %>% 
+  filter(p.adj < 0.05) %>% nrow() -> bonferroni[i]
+  
+  pairwise_t_test(soccer_simulation, Height ~ Position,
+                  p.adjust.method = "holm", pool.sd = FALSE) %>% 
+  filter(p.adj < 0.05) %>% nrow() -> holm[i]
+
+  pairwise_t_test(soccer_simulation, Height ~ Position,
+                  p.adjust.method = "BH", pool.sd = FALSE) %>% 
+  filter(p.adj < 0.05) %>% nrow() -> BH[i]
+  
+} 
+
+mean(raw)
+mean(bonferroni)
+mean(holm)
+mean(BH)
+
+
+data.frame(
+  discoveries = c(raw, bonferroni, holm, BH),
+  method = rep(c("Raw", "Bonferroni", "Holm", "BH"), each = 1000))  %>% 
+  ggplot(aes(x = discoveries, fill = method)) +
+  geom_histogram(binwidth = 1, color = "black", show.legend = FALSE) +
+  geom_text(aes(x = 1, y = 700, label = paste0("Среднее значение: ")),
+             hjust = 0)+
+  scale_fill_brewer(palette = "Dark2")+
+  theme_custom +
+  facet_grid(1 ~ method)
+
+
+```
+
