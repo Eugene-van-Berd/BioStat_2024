@@ -1,44 +1,18 @@
 ---
 title: "FWER_FDR_task"
 author: "Evgenii Berdinskikh"
-date: "`r Sys.Date()`"
+date: "2024-12-06"
 output: 
   html_document:
     keep_md: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE,
-  fig.path = "data/pics/figure-"
-  )
 
-library(tidyverse)
-library(conflicted)
-library(skimr)
-library(rstatix)
-library(ggpubr)
-library(progress)
-
-conflict_prefer("alpha", "ggplot2")
-conflict_prefer("filter", "dplyr")
-
-theme_custom <- theme_bw()+ theme(
-    plot.title = element_text(size = 30, hjust = 0.5),
-    plot.subtitle = element_text(size = 25, hjust = 0.5),
-    strip.text = element_text(size = 20),
-    axis.text = element_text(size = 20),
-    axis.title = element_text(size = 25),
-    legend.title = element_text(size = 25),
-    legend.text = element_text(size = 20)
-  )
-
-```
 
 ## Загрузка файла
 
-```{r read, message=FALSE}
 
+``` r
 set.seed(2210)
 
 #Подобие генеральное совокупности
@@ -51,7 +25,18 @@ soccer_sample <- soccer_general %>%
   slice_sample(n = 150)
 
 head(soccer_sample)
+```
 
+```
+## # A tibble: 6 × 4
+##   Name              Position   Nationality Height
+##   <chr>             <fct>      <fct>        <dbl>
+## 1 Xavier Annunziata Midfielder Spanish        179
+## 2 Adrian Ricchiuti  Midfielder Argentinian    168
+## 3 Michael Thurk     Forward    German         178
+## 4 Alessandro Nesta  Defender   Italian        187
+## 5 Gonzalo Rodriguez Defender   Argentinian    182
+## 6 Steve Sidwell     Midfielder English        178
 ```
 
 ## Задание 1
@@ -59,8 +44,8 @@ head(soccer_sample)
 -   Постройте доверительные интервалы для попарных разниц между средними (без поправок и с поправкой Бонферрони).
 -   Покрывают ли интервалы реальную разницу между средним ростом? Иллюстрации приветствуются.
 
-```{r CI, fig.width=15}
 
+``` r
 # Реальная разница в среднем росте для игроков разных позиций
 E_difference <- pairwise_t_test(soccer_general, Height ~ Position, pool.sd = FALSE, detailed = TRUE) %>% 
   transmute(difference = as.factor(paste0(group1, "/", group2)), estimate)
@@ -99,7 +84,11 @@ ggplot(pairwise_none_adj)+
            size = 5, shape = 18) +
   annotate("text", x = 6.5, y = 8.2, hjust = 0,
             size = 5, label = "  Реальная разница")
+```
 
+![](data/pics/figure-CI-1.png)<!-- -->
+
+``` r
 # Доверительные интервалы для попарных разниц между средними с поправкой Бонферрони 
 ggplot(pairwise_bonferroni_adj)+
   geom_pointrange(aes(x = fct_reorder(difference, estimate, .desc = TRUE), y = estimate, 
@@ -121,8 +110,9 @@ ggplot(pairwise_bonferroni_adj)+
            size = 5, shape = 18) +
   annotate("text", x = 6.5, y = 8.2, hjust = 0,
             size = 5, label = "  Реальная разница")
-
 ```
+
+![](data/pics/figure-CI-2.png)<!-- -->
 
 Если доверительные интервалы для попарных разниц между средними строятся без поправки на множественные сравнения, реальная разница в росте между защитниками и полузащитниками оказывается за пределами этих интервалов. При использовании поправки Бонферрони доверительные интервалы увеличиваются и включают все реальные разницы.
 
@@ -131,8 +121,8 @@ ggplot(pairwise_bonferroni_adj)+
 -   Проведите попарные тесты для разниц между средними (без поправок, с поправкой Холма и поправкой Бенджамини-Хохберга).
 -   Сколько открытий получилось в каждом случае? Сколько из них ложные?
 
-```{r discoveries, fig.width=10}
 
+``` r
 raw <- c()        
 bonferroni <- c()     
 holm <- c()     
@@ -184,10 +174,11 @@ simulations <- tibble(
   labs(x = "Количество открытий", y = "Количество тестов")+
   theme_custom +
   facet_grid( ~ fct_relevel(method, c("Raw", "BH", "Holm", "Bonferroni") ))
-
 ```
 
-Реальные различия в среднем росте игроков по позициям составляют: **`r E_difference$estimate`**.
+![](data/pics/figure-discoveries-1.png)<!-- -->
+
+Реальные различия в среднем росте игроков по позициям составляют: **3.3183291, -5.2565139, 4.0832884, -8.5748429, 0.7649594, 9.3398023**.
 При проведении 1000 симуляций на различных выборках среднее количество значимых открытий в попарных тестах без поправок составляет **4.617**, что сопровождается высоким риском ошибки I рода. 
 
 После применения поправок на множественные сравнения среднее количество значимых открытий ожидаемо уменьшается:
